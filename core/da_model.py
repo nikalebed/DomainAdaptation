@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from model.parametrized_model import ParametrizedGenerator, \
+from gan_models.parametrized_model import ParametrizedGenerator, \
     ParametrizedModulatedConv2d
 
 

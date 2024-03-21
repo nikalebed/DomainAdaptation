@@ -6,7 +6,7 @@ from torch import nn
 from torch.nn import functional as F
 from op import FusedLeakyReLU
 
-from model.sg2_model import (
+from gan_models.sg2_model import (
     PixelNorm, EqualLinear, ModulatedConv2d,
     NoiseInjection, ConstantInput, ToRGB
 )

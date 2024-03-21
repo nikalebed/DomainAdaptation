@@ -10,7 +10,7 @@ from sklearn.decomposition import IncrementalPCA
 from utils.bicubic import BicubicDownSample
 from core.loss import LossBuilder
 from tqdm.auto import tqdm
-from model.sg2_model import Generator
+from gan_models.sg2_model import Generator
 
 toPIL = torchvision.transforms.ToPILImage()
 

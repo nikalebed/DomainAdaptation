@@ -1,4 +1,6 @@
 import torch
+import torch.nn.functional as F
+import numpy as np
 import torch.nn as nn
 from core import lpips
 
@@ -48,6 +50,12 @@ class LossBuilder(torch.nn.Module):
             losses[loss_type] = tmp_loss
             loss += weight * tmp_loss
         return loss, losses
+
+
+def global_loss(batch):
+    v_dom = batch[]
+    v_samp = batch['img_B_encoded'] - batch['img_A_encoded']
+    return 1.0 - F.cosine_similarity(x, y)
 
 
 def get_loss(name):
