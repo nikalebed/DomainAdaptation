@@ -5,6 +5,7 @@ from utils.sg2_utils import get_stylegan_conv_dimensions, mixing_noise
 from core.loss import ComposedLoss
 from core.dataset import ImagesDataset
 import typing as tp
+from core.inverters import BaseInverter, II2SInverter, e4eInverter
 
 
 class DomainAdaptationTrainer:
@@ -24,6 +25,7 @@ class DomainAdaptationTrainer:
         self.style_image_inverted_A = None
 
         self.clip_batch_generator = None
+        self.image_inverter = BaseInverter()
 
     def setup(self):
         self.setup_source_generator()
@@ -31,6 +33,7 @@ class DomainAdaptationTrainer:
         self.setup_criterion()
         self.setup_style_image()
         self.setup_clip_batch_generator()
+        self.setup_image_inverter()
 
     def setup_source_generator(self):
         self.source_generator = DomainAdaptationGenerator(
@@ -55,7 +58,7 @@ class DomainAdaptationTrainer:
             'image_low_res_torch'].unsqueeze(
             0).to(self.device)
 
-        self.style_image_latent = self.invert_image(
+        self.style_image_latent = self.image_inverter.get_latent(
             style_image_info).detach().clone()
 
         self.style_image_inverted_A = self.forward_source(
@@ -107,3 +110,12 @@ class DomainAdaptationTrainer:
             loss = self.train_iter()
             # if i % self.config.log_iters(): TODO
             #     self.log()
+
+    def setup_clip_batch_generator(self):
+        pass
+
+    def setup_image_inverter(self):
+        if self.config.inverter == 'e4e':
+            self.image_inverter = e4eInverter()
+        elif self.config.inverter == 'ii2s':
+            self.image_inverter = II2SInverter()
