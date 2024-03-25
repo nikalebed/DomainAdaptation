@@ -4,6 +4,15 @@ from gan_models.parametrized_model import ParametrizedGenerator, \
     ParametrizedModulatedConv2d
 
 
+def requires_grad(model, flag=True):
+    if isinstance(model, nn.Parameter):
+        model.requires_grad = flag
+        return
+
+    for p in model.parameters():
+        p.requires_grad = flag
+
+
 class DomainAdaptationGenerator(nn.Module):
     def __init__(self, img_size=1024, latent_size=512, map_layers=8,
                  channel_multiplier=2, device='cuda', checkpoint_path=None):
@@ -51,3 +60,26 @@ class DomainAdaptationGenerator(nn.Module):
                               noise=noise,
                               randomize_noise=randomize_noise,
                               input_is_latent=input_is_latent)
+
+    def freeze_layers(self, layer_list=None):
+        """
+        Disable training for all layers in list.
+        """
+        if layer_list is None:
+            self.freeze_layers(self.get_all_layers())
+        else:
+            for layer in layer_list:
+                requires_grad(layer, False)
+
+    def unfreeze_layers(self, layer_list=None):
+        """
+        Enable training for all layers in list.
+        """
+        if layer_list is None:
+            self.unfreeze_layers(self.get_all_layers())
+        else:
+            for layer in layer_list:
+                requires_grad(layer, True)
+
+    def get_all_layers(self):
+        return list(self.generator.children())

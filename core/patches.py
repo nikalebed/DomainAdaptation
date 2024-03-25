@@ -24,5 +24,5 @@ class BaseModulationPatch(Patch):
 
 class DomainModulationPatch(BaseModulationPatch):
     def forward(self, weight, params):
-        mult = self.ones + params
+        mult = self.ones + params['in']
         return weight * mult

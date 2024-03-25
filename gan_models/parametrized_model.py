@@ -121,7 +121,7 @@ class ParametrizedStyledConv(nn.Module):
         # self.activate = ScaledLeakyReLU(0.2)
         self.activate = FusedLeakyReLU(out_channel)
 
-    def forward(self, input, params, style, noise=None):
+    def forward(self, input, style, params, noise=None):
         out = self.conv(input, style, params)
         out = self.noise(out, noise=noise)
         # out = out + self.bias

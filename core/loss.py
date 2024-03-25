@@ -99,13 +99,13 @@ class PSPLoss(torch.nn.Module):
     def __init__(self, device='cuda'):
         super(PSPLoss, self).__init__()
 
+        self.device = device
         self.num_keep_first = 7
-        self.loss_type = 'dynamic'
+        self.psp_loss_type = 'dynamic'
         self.delta_w_type = 'mean'
         self.sliding_window_size = 50
         # self.weight = weight
         self.psp_alpha = 0.6
-
         self.source_set = []
         self.target_set = []
         self.source_pos = 0
@@ -179,7 +179,8 @@ class PSPLoss(torch.nn.Module):
             # edit_direction = target_encodings - source_encodings
             # theta = (edit_direction.clone() * self.target_direction).sum(dim=-1, keepdim=True)
             # return F.l1_loss(edit_direction, theta * self.target_direction)
-            loss = self.multi_stage_loss(target_encodings, source_encodings)
+            # loss = self.multi_stage_loss(target_encodings, source_encodings)
+            ...
         elif self.psp_loss_type == "dynamic":
             delta_w = self.update_w(source_encodings, target_encodings)
             regular_weight = max(0, \
@@ -190,6 +191,15 @@ class PSPLoss(torch.nn.Module):
             raise RuntimeError(f"No psp loss whose type is {self.psp_loss_type} !")
 
         return loss
+
+
+class CLIPLoss(torch.nn.Module):
+    def forward(self, batch):
+        losses = {}
+        for loss in self.loss_funcs:
+            for visual_encoder_key, clip_batch in batch['clip_data'].items():
+                log_vienc_key = visual_encoder_key.replace('/', '-')
+                losses[f'{loss}_{log_vienc_key}'] = self.loss_registry[loss](clip_batch)
 
 
 def get_loss(name):
@@ -203,16 +213,25 @@ def get_loss(name):
         raise ValueError(name)
 
 
+clip_losses = ['direction', 'difa_local']
+
+
 class ComposedLoss(nn.Module):
     def __init__(self, optimization_setup):
         super().__init__()
         self.config = optimization_setup
         self.loss_funcs = optimization_setup.loss_funcs
-        self.coefs = optimization_setup.coefs
+        self.coefs = optimization_setup.loss_coefs
 
     def forward(self, batch):
-        losses = {}
-        for name in self.loss_funcs:
-            losses[name] = get_loss(name)(batch)
-        losses['total'] = sum(v * c for v, c in zip(losses.values(), self.coefs))
+        losses = {'final': 0.}
+        for name, coef in zip(self.loss_funcs, self.coefs):
+            if name in clip_losses:
+                for visual_encoder_key, clip_batch in batch['clip_data'].items():
+                    log_vienc_key = visual_encoder_key.replace('/', '-')
+                    losses[f'{name}_{log_vienc_key}'] = get_loss(name)(clip_batch)
+                    losses['final'] += losses[f'{name}_{log_vienc_key}'] * coef
+            else:
+                losses[name] = get_loss(name)(batch)
+                losses['final'] += losses[name] * coef
         return losses

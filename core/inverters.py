@@ -21,9 +21,13 @@ class II2SInverter(BaseInverter):
 
     @torch.no_grad()
     def get_latent(self, image_info):
-        image_full_res = image_info['image_high_res_torch'].unsqueeze(0).to(
+        if len(image_info['image_high_res_torch'].shape) < 4:
+            image_info['image_high_res_torch'] = image_info['image_high_res_torch'].unsqueeze(0)
+            image_info['image_low_res_torch'] = image_info['image_low_res_torch'].unsqueeze(0)
+
+        image_full_res = image_info['image_high_res_torch'].to(
             self.device)
-        image_resized = image_info['image_low_res_torch'].unsqueeze(0).to(
+        image_resized = image_info['image_low_res_torch'].to(
             self.device)
 
         latents, = self.ii2s.invert_image(
@@ -42,23 +46,14 @@ class e4eInverter(BaseInverter):
         opts = ckpt['opts']
         opts['checkpoint_path'] = model_path
         opts = Namespace(**opts)
-
         self.net = e4e(opts).eval().to(self.device)
 
-    class e4eInverter(BaseInverter):
-        def __init__(self):
-            super().__init__()
+    @torch.no_grad()
+    def get_latent(self, image_info):
+        if len(image_info['image_low_res_torch'].shape) < 4:
+            image_info['image_low_res_torch'] = image_info['image_low_res_torch'].unsqueeze(0)
 
-            model_path = 'pretrained/e4e_ffhq_encode.pt'
-            ckpt = torch.load(model_path, map_location='cpu')
-            opts = ckpt['opts']
-            opts['checkpoint_path'] = model_path
-            opts = Namespace(**opts)
-            self.net = e4e(opts).eval().to(self.device)
-
-        @torch.no_grad()
-        def get_latent(self, image_info):
-            img = image_info['image_low_res_torch'].unsqueeze(0).to(
-                self.device)
-            images, w_plus = self.net(img, randomize_noise=False, return_latents=True)
-            return w_plus
+        img = image_info['image_low_res_torch'].to(
+            self.device)
+        images, w_plus = self.net(img, randomize_noise=False, return_latents=True)
+        return w_plus
