@@ -17,9 +17,9 @@ training:
   device: cuda:0
   generator: stylegan2
   phase: all
-  patch_key: original
+  patch_key: params
   source_class: Real Person
-  target_class: ./image_domains/disney.png
+  target_class: ./styles/joker.jpeg
   auto_layer_k: 16
   auto_layer_iters: 0
   auto_layer_batch: 8

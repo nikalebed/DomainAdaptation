@@ -21,6 +21,7 @@ class DomainAdaptationTrainer:
         self.config = config
         self.device = config.training.device
         self.current_step = None
+        self.zs_for_logging = None
 
         self.source_generator = None
         self.trainable = None
@@ -37,11 +38,17 @@ class DomainAdaptationTrainer:
 
     def setup(self):
         self.setup_source_generator()
+
+        self.initial_logging()
+
         self.setup_trainable()
         self.setup_optimizer()
         self.setup_criterion()
         self.setup_image_inverter()
+
         self.setup_style_image()
+        self.log_target_images()
+
         self.setup_clip_batch_generator()
 
     def setup_source_generator(self):
@@ -95,6 +102,32 @@ class DomainAdaptationTrainer:
 
         self.style_image_inverted_A = self.forward_source(
             [self.style_image_latent], input_is_latent=True)
+
+    def log_target_images(self):
+        style_image_resized = t2im(self.style_image_resized.squeeze())
+        st_im_inverted_A = t2im(self.style_image_inverted_A.squeeze())
+
+        wandb.log({f"style_image/orig": wandb.Image(style_image_resized, caption=f"reference")})
+        wandb.log({f"style_image/projected_A": wandb.Image(st_im_inverted_A, caption=f"projected reference")})
+
+    @torch.no_grad()
+    def initial_logging(self):
+        self.zs_for_logging = [
+            mixing_noise(16, 512, 0, self.config.training.device)
+            for _ in range(self.config.logging.num_grid_outputs)
+        ]
+
+        wandb.init(project=self.config.exp.project,
+                   name=self.config.exp.name,
+                   dir=self.config.exp.root,
+                   tags=tuple(self.config.exp.tags) if self.config.exp.tags else None,
+                   notes=self.config.exp.notes,
+                   config=dict(self.config))
+
+        for idx, z in enumerate(self.zs_for_logging):
+            images = self.forward_source(z)
+            wandb.log(
+                {f"src_domain_grids/{idx}": wandb.Image(construct_paper_image_grid(images), caption=f"originals")})
 
     @torch.no_grad()
     def forward_source(self, latents, **kwargs) -> torch.Tensor:
@@ -157,15 +190,8 @@ class DomainAdaptationTrainer:
 
     def train(self):
         self.all_to_device(self.device)
-        self.current_step = 0
-        wandb.init(project=self.config.exp.project,
-                   name=self.config.exp.name,
-                   dir=self.config.exp.root,
-                   tags=tuple(self.config.exp.tags) if self.config.exp.tags else None,
-                   notes=self.config.exp.notes,
-                   config=dict(self.config))
-
-        for i in tqdm(range(self.config.training.iter_num)):
+        self.current_step = 1
+        for i in tqdm(range(1, self.config.training.iter_num + 1)):
             loss = self.train_iter()
             wandb.log(loss)
             if i % self.config.logging.log_images:
