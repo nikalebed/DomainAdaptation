@@ -61,6 +61,13 @@ class DomainAdaptationGenerator(nn.Module):
                               randomize_noise=randomize_noise,
                               input_is_latent=input_is_latent)
 
+    def style(self, styles):
+        """
+        Convert z codes to w codes.
+        """
+        styles = [self.generator.style(s) for s in styles]
+        return styles
+
     def freeze_layers(self, layer_list=None):
         """
         Disable training for all layers in list.

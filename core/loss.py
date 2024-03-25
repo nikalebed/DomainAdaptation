@@ -155,17 +155,18 @@ class PSPLoss(torch.nn.Module):
         target_encodings = cond * target_encodings
         source_encodings = cond * source_encodings
 
-        # Update the mean direction of target domain and difference
-        self.iter_diff.append(torch.abs(cond - self.cond).sum().cpu().item() / len(delta_w))
-        self.iter_mean.append(cond.mean().cpu().item())
-        self.iter_sim.append(self.cosine_similarity(delta_w, self.target_direction).sum().cpu().item())
+        # # Update the mean direction of target domain and difference
+        # self.iter_diff.append(torch.abs(cond - self.cond).sum().cpu().item() / len(delta_w))
+        # self.iter_mean.append(cond.mean().cpu().item())
+        # self.iter_sim.append(self.cosine_similarity(delta_w, self.target_direction).sum().cpu().item())
 
         loss = F.l1_loss(target_encodings, source_encodings)
         return loss
 
     def forward(self, batch):
-        target_encodings = batch['inv_data']['trg_latents']
-        source_encodings = batch['inv_data']['src_latents']
+        batch_size = batch['inv_data']['trg_latents'].shape[0]
+        target_encodings = batch['inv_data']['trg_latents'].reshape(batch_size, -1)
+        source_encodings = batch['inv_data']['src_latents'].reshape(batch_size, -1)
 
         iters = batch['inv_data']['iters']
 

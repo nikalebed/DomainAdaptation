@@ -43,12 +43,17 @@ def rm_file(path: str):
 
 class Setup:
     def __init__(self):
+        self.root = Path(__file__).parent
         self.pretrained_root = Path(__file__).parent / 'pretrained'
         self.pretrained_root.mkdir(exist_ok=True)
 
     def _download(self, data):
+        if data.get('root_located', False):
+            root = self.root
+        else:
+            root = self.pretrained_root
 
-        file_dest = str(self.pretrained_root / data['name'])
+        file_dest = str(root / data['name'])
 
         if 'link' in data:
             download_curl(data['link'], file_dest)
@@ -59,10 +64,10 @@ class Setup:
             bzip2(file_dest)
             rm_file(file_dest)
         elif file_dest.endswith('tar.gz'):
-            untar(file_dest, str(self.pretrained_root / data['uncompressed_dir']))
+            untar(file_dest, str(root / data['uncompressed_dir']))
             rm_file(file_dest)
         elif file_dest.endswith('.zip'):
-            unzip(file_dest, str(self.pretrained_root / data['uncompressed_dir']))
+            unzip(file_dest, str(root / data['uncompressed_dir']))
             rm_file(file_dest)
 
     def setup(self, values):
@@ -92,7 +97,14 @@ SOURCES = {
         'link': 'https://www.dropbox.com/s/r8816i09t9n94hy/checkpoints.zip?dl=0',
         'name': 'checkpoints.zip',
         'uncompressed_dir': ''
-    }
+    },
+    'clip_means': {
+        'link': 'https://nxt.2a2i.org/index.php/s/CbxaqSy6C7sFNW2/download/clip_means.zip',
+        'name': 'clip_means.zip',
+        'uncompressed_dir': '',
+        'root_located': True,
+    },
+
 }
 
 

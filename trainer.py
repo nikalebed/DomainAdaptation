@@ -10,6 +10,9 @@ import typing as tp
 from core.inverters import BaseInverter, II2SInverter, e4eInverter
 from core.batch_generators import DiFABaseClipBatchGenerator
 import torchvision.transforms as transforms
+from pathlib import Path
+from utils.image_utils import t2im, construct_paper_image_grid
+from tqdm import tqdm
 
 
 class DomainAdaptationTrainer:
@@ -17,7 +20,7 @@ class DomainAdaptationTrainer:
     def __init__(self, config):
         self.config = config
         self.device = config.training.device
-        self.iter = None
+        self.current_step = None
 
         self.source_generator = None
         self.trainable = None
@@ -35,6 +38,7 @@ class DomainAdaptationTrainer:
     def setup(self):
         self.setup_source_generator()
         self.setup_trainable()
+        self.setup_optimizer()
         self.setup_criterion()
         self.setup_image_inverter()
         self.setup_style_image()
@@ -47,6 +51,24 @@ class DomainAdaptationTrainer:
         self.source_generator.add_patches()  # TODO add options
         self.source_generator.freeze_layers()
         self.source_generator.to(self.device)
+
+    def setup_optimizer(self):
+        if self.config.training.patch_key == "original":
+            g_reg_every = self.config.optimization_setup.g_reg_every
+            lr = self.config.optimization_setup.optimizer.lr
+
+            g_reg_ratio = g_reg_every / (g_reg_every + 1)
+            betas = self.config.optimization_setup.optimizer.betas
+
+            self.optimizer = torch.optim.Adam(
+                self.trainable.parameters(),
+                lr=lr * g_reg_ratio,
+                betas=(betas[0] ** g_reg_ratio, betas[1] ** g_reg_ratio),
+            )
+        else:
+            self.optimizer = torch.optim.Adam(
+                self.trainable.parameters(), **self.config.optimization_setup.optimizer
+            )
 
     def setup_trainable(self):
         self.trainable = Parametrization(
@@ -81,9 +103,9 @@ class DomainAdaptationTrainer:
 
     def forward_trainable(self, latents, **kwargs) -> tp.Tuple[torch.Tensor, tp.Optional[torch.Tensor]]:
         if self.config.training.patch_key == "original":
-            sampled_images, _ = self.trainable(
-                latents, **kwargs
-            )
+            # sampled_images, _ = self.trainable(
+            #     latents, **kwargs
+            # )#TODO
             params = None
         else:
             params = self.trainable()
@@ -136,12 +158,21 @@ class DomainAdaptationTrainer:
     def train(self):
         self.all_to_device(self.device)
         self.current_step = 0
-        for i in range(self.config.training.iter_num):
+        wandb.init(project=self.config.exp.project,
+                   name=self.config.exp.name,
+                   dir=self.config.exp.root,
+                   tags=tuple(self.config.exp.tags) if self.config.exp.tags else None,
+                   notes=self.config.exp.notes,
+                   config=dict(self.config))
+
+        for i in tqdm(range(self.config.training.iter_num)):
             loss = self.train_iter()
+            wandb.log(loss)
+            if i % self.config.logging.log_images:
+                wandb.log(self.get_logger_images())
             self.current_step += 1
-            # if i % self.config.log_iters(): TODO
-            #     self.log()
         self.save_checkpoint()
+        wandb.finish()
 
     def setup_clip_batch_generator(self):
         self.clip_batch_generator = DiFABaseClipBatchGenerator(self.config)
@@ -164,9 +195,45 @@ class DomainAdaptationTrainer:
     def save_checkpoint(self):
         # if not self.config.checkpointing.is_on:
         #     return
-
         ckpt = self.get_checkpoint()
         if not os.path.exists('checkpoints'):
             # Create a new directory because it does not exist
             os.makedirs('checkpoints')
         torch.save(ckpt, os.path.join('checkpoints', f"{self.current_step}_checkpoint.pt"))  # TODO add logger
+
+    @torch.no_grad()
+    def get_logger_images(self):
+        self.trainable.eval()
+        dict_to_log = {}
+
+        for idx, z in enumerate(self.zs_for_logging):
+            w_styles = self.source_generator.style(z)
+            sampled_imgs, _ = self.forward_trainable(z, truncation=self.config.logging.truncation)
+
+            # tmp_latents = w_styles[0].unsqueeze(1).repeat(1, 18, 1)
+            # gen_mean = self.source_generator.mean_latent.unsqueeze(1).repeat(1, 18, 1)
+            # style_mixing_latents = self.config.logging.truncation * (tmp_latents - gen_mean) + gen_mean
+            # style_mixing_latents[:, 7:, :] = self.style_image_latent[:, 7:, :]
+            #
+            # style_mixing_imgs, _ = self.forward_trainable(
+            #     [style_mixing_latents], input_is_latent=True,
+            #     truncation=1
+            # )
+            #
+            # sampled_imgs = construct_paper_image_grid(sampled_imgs)
+            # style_mixing_imgs = construct_paper_image_grid(style_mixing_imgs)
+
+            dict_to_log.update({
+                f"trg_domain_grids/{Path(self.config.training.target_class).stem}/{idx}": sampled_imgs,
+                # f"trg_domain_grids_sm/{Path(self.config.training.target_class).stem}/{idx}": style_mixing_imgs,
+            })
+
+        rec_img, _ = self.forward_trainable(
+            [self.style_image_latent],
+            input_is_latent=True,
+        )
+        rec_img = t2im(rec_img.squeeze())
+        dict_to_log.update({"style_image/projected_B": rec_img})
+
+        dict_to_log = {k: wandb.Image(v, caption=f"iter = {self.current_step}") for k, v in dict_to_log.items()}
+        return dict_to_log
