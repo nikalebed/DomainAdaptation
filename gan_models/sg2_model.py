@@ -241,7 +241,7 @@ class ModulatedConv2d(nn.Module):
                                                      self.downsample)
         )
 
-    def forward(self, input, style, offsets=None):
+    def forward(self, input, style):
         batch, in_channel, height, width = input.shape
 
         style = self.modulation(style).view(batch, 1, in_channel, 1, 1)
