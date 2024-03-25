@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from encoders import psp_encoders
+from utils.encoders import psp_encoders
 from gan_models.sg2_model import Generator
 
 model_paths = {

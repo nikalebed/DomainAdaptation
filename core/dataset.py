@@ -8,7 +8,7 @@ from pathlib import Path
 from torch.utils.data import Dataset
 from torchvision import transforms as transforms
 
-from utils.common import align_face
+# from core.utils.common import align_face
 
 IMG_EXTENSIONS = [
     '.jpg', '.JPG', '.jpeg', '.JPEG',
@@ -32,9 +32,7 @@ def make_dataset(dir):
 
 
 class ImagesDataset(Dataset):
-
-    def __init__(self, opts, image_path=None, face_predictor=None, align_input=False):
-
+    def __init__(self, opts, image_path=None, align_input=False):
         if type(image_path) == list:
             self.image_paths = image_path
         elif os.path.isdir(image_path):
@@ -42,29 +40,38 @@ class ImagesDataset(Dataset):
         elif os.path.isfile(image_path):
             self.image_paths = [image_path]
         else:
-            sys.exit('Invalid Input')
+            raise ValueError(f"Incorrect 'image_path' argument in ImagesDataset, {image_path}")
 
         self.image_transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])])
+            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+        ])
+
         self.opts = opts
         self.align_input = align_input
-        self.predictor = face_predictor
+
+        if self.align_input:
+            weight_path = str(Path(__file__).parent.parent / 'pretrained/shape_predictor_68_face_landmarks.dat')
+            self.predictor = dlib.shape_predictor(weight_path)
 
     def __len__(self):
         return len(self.image_paths)
 
     def __getitem__(self, index):
-        im_path = self.image_paths[index]
+        im_path = Path(self.image_paths[index])
 
-        if self.align_input and self.predictor is not None:
-            im_H = align_face(im_path, self.predictor, output_size=self.opts.size)
-        else:
-            im_H = Image.open(im_path).convert('RGB')
+        # if self.align_input:
+        #     im_H = align_face(str(im_path), self.predictor, output_size=self.opts.size)
+        # else:
+        im_H = Image.open(str(im_path)).convert('RGB')
+        im_H = im_H.resize((self.opts.size, self.opts.size))
+
         im_L = im_H.resize((256, 256), PIL.Image.LANCZOS)
-        im_name = os.path.splitext(os.path.basename(im_path))[0]
-        if self.image_transform:
-            im_H = self.image_transform(im_H)
-            im_L = self.image_transform(im_L)
 
-        return im_H, im_L, im_name
+        return {
+            "image_high_res": im_H,
+            "image_low_res": im_L,
+            "image_high_res_torch": self.image_transform(im_H),
+            "image_low_res_torch": self.image_transform(im_L),
+            "image_name": im_path.stem
+        }

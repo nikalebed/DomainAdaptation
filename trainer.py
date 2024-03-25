@@ -1,3 +1,5 @@
+import os
+import wandb
 import torch
 from core.da_model import DomainAdaptationGenerator
 from core.parametrization import Parametrization
@@ -6,13 +8,16 @@ from core.loss import ComposedLoss
 from core.dataset import ImagesDataset
 import typing as tp
 from core.inverters import BaseInverter, II2SInverter, e4eInverter
+from core.batch_generators import DiFABaseClipBatchGenerator
+import torchvision.transforms as transforms
 
 
 class DomainAdaptationTrainer:
 
     def __init__(self, config):
         self.config = config
-        self.device = config.device
+        self.device = config.training.device
+        self.iter = None
 
         self.source_generator = None
         self.trainable = None
@@ -37,7 +42,7 @@ class DomainAdaptationTrainer:
 
     def setup_source_generator(self):
         self.source_generator = DomainAdaptationGenerator(
-            **self.config.generator_args)
+            **self.config.generator_args)  # TODO
         self.source_generator.patch_layers(self.config.training.patch_key)
         self.source_generator.freeze_layers()
         self.source_generator.to(self.device)
@@ -47,7 +52,9 @@ class DomainAdaptationTrainer:
             get_stylegan_conv_dimensions(self.source_generator.generator.size))
 
     def setup_criterion(self):
-        self.criterion = ComposedLoss(self.config.loss_config)
+        # self.loss_function = DirectLoss(self.config.optimization_setup)
+        # self.has_clip_loss = len(self.loss_function.clip.funcs) > 0
+        self.criterion = ComposedLoss(self.config.optimization_setup)
 
     def setup_style_image(self):
         style_image_info = ImagesDataset(self.config.img_opt, self.config.style_image)[0]
@@ -83,12 +90,23 @@ class DomainAdaptationTrainer:
 
         return sampled_images, offsets
 
+    def get_image_info(self, img):
+        t = transforms.Resize(256)
+        return {
+            'image_high_res_torch': img,
+            'image_low_res_torch': t(img)
+        }
+
     def encode_batch(self, sample_z):
         frozen_img = self.forward_source(sample_z)
         trainable_img, offsets = self.forward_trainable(sample_z)
 
         clip_data = self.clip_batch_generator.calc_batch(frozen_img, trainable_img)
-
+        inv_data = {
+            'src_latents': self.image_inverter.get_latent(self.get_image_info(frozen_img)),
+            'trg_latents': self.image_inverter.get_latent(self.get_image_info(trainable_img)),
+            'iters': self.current_step
+        }
         return {
             'clip_data': clip_data,
             'offsets': offsets,
@@ -105,17 +123,42 @@ class DomainAdaptationTrainer:
         self.optimizer.step()
         return loss
 
+    def save_checkpoint(self):
+        self.trainable.state_dict()
+
     def train(self):
+        self.current_step = 0
         for i in range(self.config.train_iters):
             loss = self.train_iter()
+            self.current_step += 1
             # if i % self.config.log_iters(): TODO
             #     self.log()
+        self.save_checkpoint()
 
     def setup_clip_batch_generator(self):
-        pass
+        self.clip_batch_generator = DiFABaseClipBatchGenerator(self.config)
 
     def setup_image_inverter(self):
         if self.config.inverter == 'e4e':
             self.image_inverter = e4eInverter()
         elif self.config.inverter == 'ii2s':
             self.image_inverter = II2SInverter()
+
+    def get_checkpoint(self):
+        state_dict = {
+            "step": self.current_step,
+            "trainable": self.trainable.state_dict(),
+            "trainable_optimizer": self.optimizer.state_dict(),
+            "config": self.config,
+        }
+        return state_dict
+
+    def make_checkpoint(self):
+        if not self.config.checkpointing.is_on:
+            return
+
+        ckpt = self.get_checkpoint()
+        if not os.path.exists('checkpoints'):
+            # Create a new directory because it does not exist
+            os.makedirs('checkpoints')
+        torch.save(ckpt, os.path.join('checkpoints', f"{self.current_step}_checkpoint.pt"))  # TODO add logger

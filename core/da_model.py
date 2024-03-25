@@ -6,7 +6,7 @@ from gan_models.parametrized_model import ParametrizedGenerator, \
 
 class DomainAdaptationGenerator(nn.Module):
     def __init__(self, img_size=1024, latent_size=512, map_layers=8,
-                 channel_multiplier=2, device='cuda:0', checkpoint_path=None):
+                 channel_multiplier=2, device='cuda', checkpoint_path=None):
         super().__init__()
 
         self.generator = ParametrizedGenerator(
@@ -33,25 +33,21 @@ class DomainAdaptationGenerator(nn.Module):
                 self.generator.convs[conv_layer_ix].conv
             )
 
-    def forward(
-            self,
-            styles,
-            params=None,
-            return_latents=False,
-            inject_index=None,
-            truncation=1,
-            truncation_latent=None,
-            input_is_latent=False,
-            noise=None,
-            randomize_noise=False
-    ):
-        return self.generator(self,
-                              styles,
-                              params=None,
-                              return_latents=False,
-                              inject_index=None,
-                              truncation=1,
-                              truncation_latent=None,
-                              input_is_latent=False,
-                              noise=None,
-                              randomize_noise=False)
+    def forward(self,
+                styles,
+                params=None,
+                return_latents=False,
+                inject_index=None,
+                truncation=1,
+                truncation_latent=None,
+                input_is_latent=False,
+                noise=None,
+                randomize_noise=True):
+        return self.generator(styles,
+                              params=params,
+                              return_latents=return_latents,
+                              truncation=truncation,
+                              truncation_latent=self.mean_latent,
+                              noise=noise,
+                              randomize_noise=randomize_noise,
+                              input_is_latent=input_is_latent)

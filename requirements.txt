@@ -13,3 +13,4 @@ ipython
 dlib
 gdown
 click
+ninja

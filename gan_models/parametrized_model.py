@@ -4,7 +4,7 @@ import random
 import torch
 from torch import nn
 from torch.nn import functional as F
-from op import FusedLeakyReLU
+from gan_models.op import FusedLeakyReLU
 
 from gan_models.sg2_model import (
     PixelNorm, EqualLinear, ModulatedConv2d,
@@ -100,7 +100,6 @@ class ParametrizedStyledConv(nn.Module):
             out_channel,
             kernel_size,
             style_dim,
-            params,
             upsample=False,
             blur_kernel=[1, 3, 3, 1],
             demodulate=True,
