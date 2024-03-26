@@ -4,8 +4,19 @@ import numpy as np
 import torch.nn.functional as F
 import typing as tp
 from torchvision.utils import make_grid
-
 from torchvision.transforms import Resize
+import torchvision.transforms as transforms
+from PIL import Image
+
+
+def get_image_t(img_path, size=1024):
+    image_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
+        transforms.Resize(size)
+    ])
+    img = Image.open(str(img_path)).convert('RGB')
+    return image_transform(img)
 
 
 def t2im(img_t: torch.Tensor, size: int = 512):

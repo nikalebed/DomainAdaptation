@@ -73,7 +73,7 @@ evaluation:
 logging:
   log_every: 10
   log_images: 20
-  latents_to_edit: [ ]
+  latents_to_edit: []
   truncation: 0.7
   num_grid_outputs: 1
 checkpointing:

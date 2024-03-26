@@ -2,6 +2,7 @@ from utils.II2S import II2S
 import torch
 from argparse import Namespace
 from utils.e4e import e4e
+from utils.image_utils import resize_batch
 
 
 class BaseInverter:
@@ -9,7 +10,7 @@ class BaseInverter:
         self.device = 'cuda'
 
     @torch.no_grad()
-    def get_latent(self, image_info):
+    def get_latents(self, imgs_t):
         raise NotImplementedError()
 
 
@@ -20,14 +21,10 @@ class II2SInverter(BaseInverter):
         self.ii2s = II2S(II2S_s_opts)
 
     @torch.no_grad()
-    def get_latent(self, image_info):
-        if len(image_info['image_high_res_torch'].shape) < 4:
-            image_info['image_high_res_torch'] = image_info['image_high_res_torch'].unsqueeze(0)
-            image_info['image_low_res_torch'] = image_info['image_low_res_torch'].unsqueeze(0)
-
-        image_full_res = image_info['image_high_res_torch'].to(
+    def get_latents(self, imgs_t):
+        image_full_res = imgs_t.to(
             self.device)
-        image_resized = image_info['image_low_res_torch'].to(
+        image_resized = resize_batch(imgs_t, 256).to(
             self.device)
 
         latents, = self.ii2s.invert_image(
@@ -49,11 +46,7 @@ class e4eInverter(BaseInverter):
         self.net = e4e(opts).eval().to(self.device)
 
     @torch.no_grad()
-    def get_latent(self, image_info):
-        if len(image_info['image_low_res_torch'].shape) < 4:
-            image_info['image_low_res_torch'] = image_info['image_low_res_torch'].unsqueeze(0)
-
-        img = image_info['image_low_res_torch'].to(
-            self.device)
-        images, w_plus = self.net(img, randomize_noise=False, return_latents=True)
+    def get_latents(self, imgs_t):
+        imgs_t = imgs_t.to(self.device)
+        images, w_plus = self.net(imgs_t, randomize_noise=False, return_latents=True)
         return w_plus

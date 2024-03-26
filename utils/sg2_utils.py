@@ -50,39 +50,21 @@ def get_stylegan_conv_dimensions(size, channel_multiplier=2):
     return conv_dimensions
 
 
-def get_trainable_model_state(config, state_dict):
-    if config.training.patch_key == "original":
-        # Save TunningGenerator as state_dict
-        ckpt = {
-            "model_type": 'original',
-            "state_dict": state_dict
-        }
-    else:
-        # save parametrization
-        ckpt = {
-            "model_type": "parameterization",
-            "patch_key": config.training.patch_key,
-            "state_dict": state_dict
-        }
-
-    ckpt['sg2_params'] = dict(config.generator_args['stylegan2'])
-    return ckpt
-
-
 class Inferencer(nn.Module):
-    def __init__(self, ckpt, device='cuda'):
+    def __init__(self, ckpt_dir, device='cuda'):
         super().__init__()
-        ckpt = get_trainable_model_state(ckpt['config'], ckpt['trainable'])
+        ckpt = torch.load(ckpt_dir)
+        self.config = ckpt['config']
         self.device = device
         self.source_generator = DomainAdaptationGenerator(
             **self.ckpt['sg2_params'])
-        # self.source_generator.patch_layers(self.config.training.patch_key)
+
         self.source_generator.add_patches()  # TODO add options
         self.source_generator.freeze_layers()
         self.source_generator.to(self.device)
 
         self.trainable = Parametrization(
-            get_stylegan_conv_dimensions(ckpt['sg2_params']['img_size']))
+            get_stylegan_conv_dimensions(self.config.sg2_params.img_size))
 
         self.model_da.load_state_dict(ckpt['state_dict'])
         self.model_da.to(self.device).eval()

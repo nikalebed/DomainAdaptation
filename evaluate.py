@@ -2,14 +2,17 @@ import os
 import click
 from utils.sg2_utils import Inferencer
 import torch
+from omegaconf import OmegaConf
+from utils.image_utils import get_image_t, construct_image_grid
 
-DEFAULT_LATENT_DIR = 'example_latents'
+DEFAULT_CONFIG_DIR = 'configs'
+
 
 def evaluate_model(model, latents):
     metrics = {}
 
 
-def visualize_model(model, latents):
+def visualize_model(model, styles, latents):
     ...
 
 
@@ -24,15 +27,22 @@ def get_latents(dir):
 
 
 @click.command()
-@click.option('--latents_dir', default=DEFAULT_LATENT_DIR, help='directory with latents to calculate metric on')
-@click.option('--n_images', default=7, help='number of images to process')
-@click.argument('ckpts', help='checkpoint to evaluate', default=None, nargs=-1)
-def main(latents_dir, n_images, metrics, ckpt):
-    # latents_dir = latents_dir if latents_dir else DEFAULT_LATENT_DIR
-    latents = get_latents(latents_dir)
-    net = Inferencer(ckpt)
-    src, trg = net(latents)
-    print()
+@click.argument('config_name', default='eval.yaml')
+def main(config_name):
+    config_path = os.path.join(DEFAULT_CONFIG_DIR, config_name)
+    config = OmegaConf.load(config_path)
+    latents = get_latents(config.latents_dir)[:config.n_examples]
+
+    styles = []
+    src = None
+    rows = []
+
+    for ckpt in config.ckpts:
+        net = Inferencer(ckpt)
+        styles.append(get_image_t(net.config.target_class))
+        src, trg = net(latents)
+        rows.append(trg)
+    return construct_image_grid(header=src, index=styles, imgs_t=rows, size=256)
 
 
 if __name__ == '__main__':

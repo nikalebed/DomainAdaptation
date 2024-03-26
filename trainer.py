@@ -5,13 +5,11 @@ from core.da_model import DomainAdaptationGenerator
 from core.parametrization import Parametrization
 from utils.sg2_utils import get_stylegan_conv_dimensions, mixing_noise
 from core.loss import ComposedLoss
-from core.dataset import ImagesDataset
 import typing as tp
 from core.inverters import BaseInverter, II2SInverter, e4eInverter
 from core.batch_generators import DiFABaseClipBatchGenerator
-import torchvision.transforms as transforms
 from pathlib import Path
-from utils.image_utils import t2im, construct_paper_image_grid
+from utils.image_utils import t2im, construct_paper_image_grid, get_image_t
 from tqdm import tqdm
 
 
@@ -96,22 +94,13 @@ class DomainAdaptationTrainer:
         self.criterion = ComposedLoss(self.config.optimization_setup)
 
     def setup_style_image(self):
-        from utils.II2S_options import II2S_s_opts
-        style_image_info = ImagesDataset(opts=II2S_s_opts,
-                                         image_path=self.config.training.target_class,
-                                         align_input=False)[0]
+        style_image_t = get_image_t(self.config.training.target_class, self.source_generator.generator.size)
 
-        self.style_image_full_res = style_image_info[
-            'image_high_res_torch'].unsqueeze(0).to(self.device)
-        self.style_image_resized = style_image_info[
-            'image_low_res_torch'].unsqueeze(
-            0).to(self.device)
-
-        self.style_image_latent = self.image_inverter.get_latent(
-            style_image_info).detach().clone()
+        self.style_image_latent = self.image_inverter.get_latents(
+            style_image_t).detach().clone()
 
         self.style_image_inverted_A = self.forward_source(
-            [self.style_image_latent], input_is_latent=True)
+            self.style_image_latent, input_is_latent=True)
 
     def log_target_images(self):
         style_image_resized = t2im(self.style_image_resized.squeeze())
@@ -158,21 +147,14 @@ class DomainAdaptationTrainer:
 
         return sampled_images, params
 
-    def get_image_info(self, img):
-        t = transforms.Resize(256)
-        return {
-            'image_high_res_torch': img,
-            'image_low_res_torch': t(img)
-        }
-
     def encode_batch(self, sample_z):
         frozen_img = self.forward_source(sample_z)
         trainable_img, params = self.forward_trainable(sample_z)
 
         clip_data = self.clip_batch_generator.calc_batch(frozen_img, trainable_img)
         inv_data = {
-            'src_latents': self.image_inverter.get_latent(self.get_image_info(frozen_img)),
-            'trg_latents': self.image_inverter.get_latent(self.get_image_info(trainable_img)),
+            'src_latents': self.image_inverter.get_latents(frozen_img),
+            'trg_latents': self.image_inverter.get_latents(trainable_img),
             'iters': self.current_step
         }
         return {
@@ -227,6 +209,9 @@ class DomainAdaptationTrainer:
         }
         return state_dict
 
+    def get_checkpoint_name(self):
+        return f'{Path(self.config.target_class).stem}_{self.current_step}_checkpoint.pt'
+
     def save_checkpoint(self):
         # if not self.config.checkpointing.is_on:
         #     return
@@ -234,7 +219,7 @@ class DomainAdaptationTrainer:
         if not os.path.exists('checkpoints'):
             # Create a new directory because it does not exist
             os.makedirs('checkpoints')
-        torch.save(ckpt, os.path.join('checkpoints', f"{self.current_step}_checkpoint.pt"))  # TODO add logger
+        torch.save(ckpt, os.path.join('checkpoints', self.get_checkpoint_name()))
 
     @torch.no_grad()
     def get_logger_images(self):
