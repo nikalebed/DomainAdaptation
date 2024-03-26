@@ -2,8 +2,11 @@ import torch
 import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
+import typing as tp
+from torchvision.utils import make_grid
 
 from torchvision.transforms import Resize
+
 
 def t2im(img_t: torch.Tensor, size: int = 512):
     """
@@ -12,7 +15,7 @@ def t2im(img_t: torch.Tensor, size: int = 512):
     Parameters
     ----------
     img_t : torch.Tensor
-        Image batch with shape (16, 3, H, W)
+        Image with shape (3, H, W)
 
     size : int
         Size for which smaller edge will be resized
@@ -25,6 +28,10 @@ def t2im(img_t: torch.Tensor, size: int = 512):
     img = Resize(size)(img_t).permute(1, 2, 0).cpu().detach().numpy()
     img = np.round((np.clip(img, -1, 1) + 1) / 2 * 255).astype(np.uint8)
     return img
+
+
+def resize_batch(imgs: torch.Tensor, size: int) -> torch.Tensor:
+    return F.interpolate(imgs, (size, size))
 
 
 def resize_img(img: torch.Tensor, size: int) -> torch.Tensor:
@@ -59,6 +66,16 @@ def construct_paper_image_grid(img: torch.Tensor):
     base_fig = Resize(512)(base_fig).permute(1, 2, 0).cpu().detach().numpy()
     base_fig = np.round((np.clip(base_fig, -1, 1) + 1) / 2 * 255).astype(np.uint8)
     return base_fig
+
+
+def construct_image_grid(header, index: tp.List[torch.Tensor], imgs_t: tp.List[torch.Tensor], size=256):
+    res = torch.zeros(1, 3, size, size)
+    res = torch.cat([res, resize_batch(header, size)])
+    nrow = header.shape[0] + 1
+    for i in range(len(index)):
+        row = torch.cat([resize_img(index[i], size), resize_batch(imgs_t[i], size)])
+        torch.cat([res, row])
+    return t2im(make_grid(res, nrow=nrow))
 
 
 def crop_augmentation(image: torch.Tensor, size=1024, alpha=0.8):

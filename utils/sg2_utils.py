@@ -70,7 +70,7 @@ def get_trainable_model_state(config, state_dict):
 
 
 class Inferencer(nn.Module):
-    def __init__(self, ckpt, device):
+    def __init__(self, ckpt, device='cuda'):
         super().__init__()
         ckpt = get_trainable_model_state(ckpt['config'], ckpt['trainable'])
         self.device = device
@@ -97,13 +97,9 @@ class Inferencer(nn.Module):
         if not kwargs.get('truncation', False):
             kwargs['truncation'] = 1
 
-        # if self.da_type == 'im2im':
-        #     latents = self._mtg_mixing_noise(latents, truncation=kwargs['truncation'])#TODO???
-        #     kwargs.pop('truncation')
-
         if self.model_type == 'original':
             trg_imgs, _ = self.model_da(latents, **kwargs)
         else:
-            trg_imgs, _ = self.sg2_source(latents, params=self.model_da(), **kwargs)
+            trg_imgs, _ = self.source_generator(latents, params=self.model_da(), **kwargs)
 
         return src_imgs, trg_imgs

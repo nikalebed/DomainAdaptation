@@ -78,8 +78,18 @@ class DomainAdaptationTrainer:
             )
 
     def setup_trainable(self):
-        self.trainable = Parametrization(
-            get_stylegan_conv_dimensions(self.source_generator.generator.size))
+        if self.config.training.patch_key == 'original':
+            self.trainable = DomainAdaptationGenerator(
+                **self.config.generator_args[self.config.training.generator])
+            self.trainable.add_patches()
+            # trainable_layers = list(self.trainable.get_training_layers(
+            #     phase=self.config.training.phase
+            # ))
+            # self.trainable.freeze_layers()
+            # self.trainable.unfreeze_layers(trainable_layers)
+        else:
+            self.trainable = Parametrization(
+                get_stylegan_conv_dimensions(self.source_generator.generator.size))
 
     def setup_criterion(self):
         # self.has_clip_loss = len(self.loss_function.clip.funcs) > 0
@@ -136,9 +146,9 @@ class DomainAdaptationTrainer:
 
     def forward_trainable(self, latents, **kwargs) -> tp.Tuple[torch.Tensor, tp.Optional[torch.Tensor]]:
         if self.config.training.patch_key == "original":
-            # sampled_images, _ = self.trainable(
-            #     latents, **kwargs
-            # )#TODO
+            sampled_images, _ = self.trainable(
+                latents, **kwargs
+            )
             params = None
         else:
             params = self.trainable()
@@ -193,9 +203,8 @@ class DomainAdaptationTrainer:
         self.current_step = 1
         for i in tqdm(range(1, self.config.training.iter_num + 1)):
             loss = self.train_iter()
-            wandb.log(loss)
-            if i % self.config.logging.log_images:
-                wandb.log(self.get_logger_images())
+            if i % self.config.logging.log_images == 0:
+                wandb.log(self.get_logger_images().update(loss))
             self.current_step += 1
         self.save_checkpoint()
         wandb.finish()
@@ -233,31 +242,16 @@ class DomainAdaptationTrainer:
         dict_to_log = {}
 
         for idx, z in enumerate(self.zs_for_logging):
-            w_styles = self.source_generator.style(z)
             sampled_imgs, _ = self.forward_trainable(z, truncation=self.config.logging.truncation)
-
-            # tmp_latents = w_styles[0].unsqueeze(1).repeat(1, 18, 1)
-            # gen_mean = self.source_generator.mean_latent.unsqueeze(1).repeat(1, 18, 1)
-            # style_mixing_latents = self.config.logging.truncation * (tmp_latents - gen_mean) + gen_mean
-            # style_mixing_latents[:, 7:, :] = self.style_image_latent[:, 7:, :]
-            #
-            # style_mixing_imgs, _ = self.forward_trainable(
-            #     [style_mixing_latents], input_is_latent=True,
-            #     truncation=1
-            # )
-            #
-            # sampled_imgs = construct_paper_image_grid(sampled_imgs)
-            # style_mixing_imgs = construct_paper_image_grid(style_mixing_imgs)
-
             dict_to_log.update({
                 f"trg_domain_grids/{Path(self.config.training.target_class).stem}/{idx}": sampled_imgs,
-                # f"trg_domain_grids_sm/{Path(self.config.training.target_class).stem}/{idx}": style_mixing_imgs,
             })
 
         rec_img, _ = self.forward_trainable(
             [self.style_image_latent],
             input_is_latent=True,
         )
+
         rec_img = t2im(rec_img.squeeze())
         dict_to_log.update({"style_image/projected_B": rec_img})
 
