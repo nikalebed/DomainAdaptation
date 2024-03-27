@@ -2,4 +2,4 @@ ckpt_names:
     - model_300.pt
 n_examples: 7
 latents_dir: examples/latents
-
+res_name: visualization.png

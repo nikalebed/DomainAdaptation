@@ -47,6 +47,6 @@ class e4eInverter(BaseInverter):
 
     @torch.no_grad()
     def get_latents(self, imgs_t):
-        imgs_t = imgs_t.to(self.device)
+        imgs_t = resize_batch(imgs_t, 256).to(self.device)
         images, w_plus = self.net(imgs_t, randomize_noise=False, return_latents=True)
         return w_plus

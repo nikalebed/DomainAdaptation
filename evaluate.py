@@ -4,6 +4,7 @@ from utils.sg2_utils import Inferencer
 import torch
 from omegaconf import OmegaConf
 from utils.image_utils import get_image_t, construct_image_grid
+from PIL import Image
 
 DEFAULT_CONFIG_DIR = 'configs'
 
@@ -23,7 +24,7 @@ def get_latents(dir):
         for fname in fnames:
             path = os.path.join(root, fname)
             latents.append(torch.load(path))
-    return latents
+    return torch.cat(latents)
 
 
 @click.command()
@@ -32,6 +33,7 @@ def main(config_name):
     config_path = os.path.join(DEFAULT_CONFIG_DIR, config_name)
     config = OmegaConf.load(config_path)
     latents = get_latents(config.latents_dir)[:config.n_examples]
+    latents = latents.to('cuda')
 
     styles = []
     src = None
@@ -40,9 +42,11 @@ def main(config_name):
     for ckpt in config.ckpts:
         net = Inferencer(ckpt)
         styles.append(get_image_t(net.config.target_class))
-        src, trg = net(latents)
+        src, trg = net([latents])
         rows.append(trg)
-    return construct_image_grid(header=src, index=styles, imgs_t=rows, size=256)
+    arr = construct_image_grid(header=src, index=styles, imgs_t=rows, size=256)
+    img = Image.fromarray(arr.astype('uint8'), 'RGB')
+    img.save(config.res_name)
 
 
 if __name__ == '__main__':

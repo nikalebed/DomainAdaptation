@@ -9,7 +9,7 @@ import typing as tp
 from core.inverters import BaseInverter, II2SInverter, e4eInverter
 from core.batch_generators import DiFABaseClipBatchGenerator
 from pathlib import Path
-from utils.image_utils import t2im, construct_paper_image_grid, get_image_t
+from utils.image_utils import t2im, construct_paper_image_grid, get_image_t, resize_batch
 from tqdm import tqdm
 
 
@@ -52,13 +52,12 @@ class DomainAdaptationTrainer:
     def setup_source_generator(self):
         self.source_generator = DomainAdaptationGenerator(
             **self.config.generator_args[self.config.training.generator])
-        # self.source_generator.patch_layers(self.config.training.patch_key)
         self.source_generator.add_patches()  # TODO add options
         self.source_generator.freeze_layers()
         self.source_generator.to(self.device)
 
     def setup_optimizer(self):
-        if self.config.training.patch_key == "original":
+        if self.config.training.da_type == "original":
             g_reg_every = self.config.optimization_setup.g_reg_every
             lr = self.config.optimization_setup.optimizer.lr
 
@@ -76,7 +75,7 @@ class DomainAdaptationTrainer:
             )
 
     def setup_trainable(self):
-        if self.config.training.patch_key == 'original':
+        if self.config.training.da_type == 'original':
             self.trainable = DomainAdaptationGenerator(
                 **self.config.generator_args[self.config.training.generator])
             self.trainable.add_patches()
@@ -98,9 +97,9 @@ class DomainAdaptationTrainer:
 
         self.style_image_latent = self.image_inverter.get_latents(
             style_image_t).detach().clone()
-
+        self.style_image_resized = resize_batch(style_image_t, 256)
         self.style_image_inverted_A = self.forward_source(
-            self.style_image_latent, input_is_latent=True)
+            [self.style_image_latent], input_is_latent=True)
 
     def log_target_images(self):
         style_image_resized = t2im(self.style_image_resized.squeeze())
@@ -134,7 +133,7 @@ class DomainAdaptationTrainer:
         return sampled_images.detach()
 
     def forward_trainable(self, latents, **kwargs) -> tp.Tuple[torch.Tensor, tp.Optional[torch.Tensor]]:
-        if self.config.training.patch_key == "original":
+        if self.config.training.da_type == "original":
             sampled_images, _ = self.trainable(
                 latents, **kwargs
             )
@@ -186,7 +185,8 @@ class DomainAdaptationTrainer:
         for i in tqdm(range(1, self.config.training.iter_num + 1)):
             loss = self.train_iter()
             if i % self.config.logging.log_images == 0:
-                wandb.log(self.get_logger_images().update(loss))
+                loss.update(self.get_logger_images())
+                wandb.log(loss)
             self.current_step += 1
         self.save_checkpoint()
         wandb.finish()
@@ -210,7 +210,13 @@ class DomainAdaptationTrainer:
         return state_dict
 
     def get_checkpoint_name(self):
-        return f'{Path(self.config.target_class).stem}_{self.current_step}_checkpoint.pt'
+        base = f'{Path(self.config.training.target_class).stem}_{self.current_step}_checkpoint'
+        filename = base + '{}.pt'
+        counter = 0
+        while os.path.isfile(filename.format(counter)):
+            counter += 1
+        filename = filename.format(counter)
+        return filename
 
     def save_checkpoint(self):
         # if not self.config.checkpointing.is_on:

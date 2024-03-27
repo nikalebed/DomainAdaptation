@@ -57,16 +57,20 @@ class Inferencer(nn.Module):
         self.config = ckpt['config']
         self.device = device
         self.source_generator = DomainAdaptationGenerator(
-            **self.ckpt['sg2_params'])
-
+            **self.config.generator_args[self.config.training.generator])
         self.source_generator.add_patches()  # TODO add options
         self.source_generator.freeze_layers()
         self.source_generator.to(self.device)
 
-        self.trainable = Parametrization(
-            get_stylegan_conv_dimensions(self.config.sg2_params.img_size))
+        if self.config.training.da_type == 'original':
+            self.model_da = DomainAdaptationGenerator(
+                **self.config.generator_args[self.config.training.generator])
+            self.model_da.add_patches()
+        else:
+            self.model_da = Parametrization(
+                get_stylegan_conv_dimensions(self.config.sg2_params.img_size))
 
-        self.model_da.load_state_dict(ckpt['state_dict'])
+        self.model_da.load_state_dict(ckpt['trainable'])
         self.model_da.to(self.device).eval()
 
     @torch.no_grad()
@@ -78,10 +82,9 @@ class Inferencer(nn.Module):
         src_imgs, _ = self.source_generator(latents, **kwargs)
         if not kwargs.get('truncation', False):
             kwargs['truncation'] = 1
-
-        if self.model_type == 'original':
+        if self.config.training.da_type == 'original':
             trg_imgs, _ = self.model_da(latents, **kwargs)
         else:
             trg_imgs, _ = self.source_generator(latents, params=self.model_da(), **kwargs)
 
-        return src_imgs, trg_imgs
+        return src_imgs.detach().cpu(), trg_imgs.detach().cpu()

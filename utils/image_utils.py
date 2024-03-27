@@ -16,7 +16,7 @@ def get_image_t(img_path, size=1024):
         transforms.Resize(size)
     ])
     img = Image.open(str(img_path)).convert('RGB')
-    return image_transform(img)
+    return image_transform(img).unsqueeze(0)
 
 
 def t2im(img_t: torch.Tensor, size: int = 512):
@@ -84,7 +84,7 @@ def construct_image_grid(header, index: tp.List[torch.Tensor], imgs_t: tp.List[t
     res = torch.cat([res, resize_batch(header, size)])
     nrow = header.shape[0] + 1
     for i in range(len(index)):
-        row = torch.cat([resize_img(index[i], size), resize_batch(imgs_t[i], size)])
+        row = torch.cat([resize_batch(index[i], size), resize_batch(imgs_t[i], size)])
         torch.cat([res, row])
     return t2im(make_grid(res, nrow=nrow))
 
