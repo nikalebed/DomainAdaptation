@@ -79,13 +79,17 @@ def construct_paper_image_grid(img: torch.Tensor):
     return base_fig
 
 
-def construct_image_grid(header, index: tp.List[torch.Tensor], imgs_t: tp.List[torch.Tensor], size=256):
+def construct_image_grid(header, imgs_t: tp.List[torch.Tensor], size=256, index: tp.List[torch.Tensor] = None):
     res = torch.zeros(1, 3, size, size)
     res = torch.cat([res, resize_batch(header, size)])
-    nrow = header.shape[0] + 1
+    nrow = header.shape[0]
+    if index is not None:
+        nrow += 1
     for i in range(len(index)):
-        row = torch.cat([resize_batch(index[i], size), resize_batch(imgs_t[i], size)])
-        torch.cat([res, row])
+        row = resize_batch(imgs_t[i], size)
+        if index is not None:
+            row = torch.cat([resize_batch(index[i], size), row])
+        res = torch.cat([res, row])
     return t2im(make_grid(res, nrow=nrow))
 
 

@@ -1,4 +1,4 @@
-ckpt_names:
+ckpts:
     - model_300.pt
 n_examples: 7
 latents_dir: examples/latents
