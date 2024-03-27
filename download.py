@@ -104,7 +104,12 @@ SOURCES = {
         'uncompressed_dir': '',
         'root_located': True,
     },
-
+    'example_latents': {
+        'id': '1DQ3qXDGlFTrheqAGmJ-a9gjFtf1jyNqX',
+        'name': 'example_latents.zip',
+        'uncompressed_dir': '',
+        'root_located': True
+    },
 }
 
 

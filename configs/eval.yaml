@@ -1,5 +1,5 @@
 ckpts:
     - model_300.pt
 n_examples: 7
-latents_dir: examples/latents
+latents_dir: examples_latents
 res_name: visualization.png
