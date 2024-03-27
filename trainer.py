@@ -181,13 +181,11 @@ class DomainAdaptationTrainer:
 
     def train(self):
         self.all_to_device(self.device)
-        self.current_step = 1
-        for i in tqdm(range(1, self.config.training.iter_num + 1)):
+        for self.current_step in tqdm(range(1, self.config.training.iter_num + 1)):
             loss = self.train_iter()
-            if i % self.config.logging.log_images == 0:
+            if self.current_step % self.config.logging.log_images == 0:
                 loss.update(self.get_logger_images())
                 wandb.log(loss)
-            self.current_step += 1
         self.save_checkpoint()
         wandb.finish()
 
@@ -210,7 +208,7 @@ class DomainAdaptationTrainer:
         return state_dict
 
     def get_checkpoint_name(self):
-        base = f'{Path(self.config.training.target_class).stem}_{self.current_step}_checkpoint'
+        base = f'checkpoints/{self.config.training.da_type}_{Path(self.config.training.target_class).stem}_{self.current_step}_checkpoint'
         filename = base + '{}.pt'
         counter = 0
         while os.path.isfile(filename.format(counter)):
@@ -225,7 +223,7 @@ class DomainAdaptationTrainer:
         if not os.path.exists('checkpoints'):
             # Create a new directory because it does not exist
             os.makedirs('checkpoints')
-        torch.save(ckpt, os.path.join('checkpoints', self.get_checkpoint_name()))
+        torch.save(ckpt, self.get_checkpoint_name())
 
     @torch.no_grad()
     def get_logger_images(self):
