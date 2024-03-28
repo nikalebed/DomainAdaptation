@@ -1,5 +1,10 @@
 ckpts:
-    - model_300.pt
+    - original_joker_301_checkpoint0.pt
+    - original_frida-kahlo_301_checkpoint0.pt
+    - original_petrus-christus_301_checkpoint0.pt
+    - original_sketch_301_checkpoint0.pt
+    - original_disney_301_checkpoint0.pt
+    - original_avatar_301_checkpoint0.pt
 n_examples: 7
-latents_dir: examples_latents
-res_name: visualization.png
+latents_dir: example_latents
+res_name: 5styles.png

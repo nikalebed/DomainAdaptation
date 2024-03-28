@@ -7,6 +7,8 @@ from utils.image_utils import get_image_t, construct_image_grid
 from PIL import Image
 
 DEFAULT_CONFIG_DIR = 'configs'
+DEFAULT_CHECKPOINT_DIR = 'checkpoints'
+DEFAULT_IMAGE_DIR = 'images'
 
 
 def evaluate_model(model, latents):
@@ -40,14 +42,14 @@ def main(config_name):
     rows = []
 
     for ckpt in config.ckpts:
-        net = Inferencer(ckpt)
+        net = Inferencer((os.path.join(DEFAULT_CHECKPOINT_DIR, ckpt)))
         styles.append(get_image_t(net.config.training.target_class))
         src, trg = net([latents], input_is_latent=True)
         rows.append(trg)
-    arr = construct_image_grid(header=src, index=styles, imgs_t=rows, size=256)
-    img = Image.fromarray(arr.astype('uint8'), 'RGB')
-    img.save(config.res_name)
+        arr = construct_image_grid(header=src, index=styles, imgs_t=rows, size=256)
+        img = Image.fromarray(arr.astype('uint8'), 'RGB')
 
+        img.save(os.path.join(DEFAULT_IMAGE_DIR, config.res_name))
 
-if __name__ == '__main__':
-    main()
+        if __name__ == '__main__':
+            main()
