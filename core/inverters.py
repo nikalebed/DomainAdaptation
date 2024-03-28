@@ -9,8 +9,7 @@ class BaseInverter:
     def __init__(self):
         self.device = 'cuda'
 
-    @torch.no_grad()
-    def get_latents(self, imgs_t):
+    def get_latents(self, imgs_t, grad=False):
         raise NotImplementedError()
 
 
@@ -20,17 +19,17 @@ class II2SInverter(BaseInverter):
         from utils.II2S_options import II2S_s_opts
         self.ii2s = II2S(II2S_s_opts)
 
-    @torch.no_grad()
-    def get_latents(self, imgs_t):
-        image_full_res = imgs_t.to(
-            self.device)
-        image_resized = resize_batch(imgs_t, 256).to(
-            self.device)
+    def get_latents(self, imgs_t, grad=False):
+        with torch.set_grad_enabled(grad):
+            image_full_res = imgs_t.to(
+                self.device)
+            image_resized = resize_batch(imgs_t, 256).to(
+                self.device)
 
-        latents, = self.ii2s.invert_image(
-            image_full_res,
-            image_resized
-        )
+            latents, = self.ii2s.invert_image(
+                image_full_res,
+                image_resized
+            )
         return latents
 
 
@@ -45,8 +44,8 @@ class e4eInverter(BaseInverter):
         opts = Namespace(**opts)
         self.net = e4e(opts).eval().to(self.device)
 
-    @torch.no_grad()
-    def get_latents(self, imgs_t):
-        imgs_t = resize_batch(imgs_t, 256).to(self.device)
-        images, w_plus = self.net(imgs_t, randomize_noise=False, return_latents=True)
+    def get_latents(self, imgs_t, grad=False):
+        with torch.set_grad_enabled(grad):
+            imgs_t = resize_batch(imgs_t, 256).to(self.device)
+            images, w_plus = self.net(imgs_t, randomize_noise=False, return_latents=True)
         return w_plus

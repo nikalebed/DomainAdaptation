@@ -153,8 +153,8 @@ class DomainAdaptationTrainer:
 
         clip_data = self.clip_batch_generator.calc_batch(frozen_img, trainable_img)
         inv_data = {
-            'src_latents': self.image_inverter.get_latents(frozen_img),
-            'trg_latents': self.image_inverter.get_latents(trainable_img),
+            'src_latents': self.image_inverter.get_latents(frozen_img, grad=True),
+            'trg_latents': self.image_inverter.get_latents(trainable_img, grad=True),
             'iters': self.current_step
         }
         return {
