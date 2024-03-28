@@ -70,7 +70,8 @@ def direction_loss(
 
     return cosine_loss(edit_im_direction, edit_domain_direction).mean()
 
-#attentive style-loss
+
+# attentive style-loss
 def clip_difa_local(
         clip_batch: tp.Dict[str, tp.Dict]
 ):
@@ -95,7 +96,7 @@ def clip_difa_local(
     return overall.max(dim=1)[0].mean()
 
 
-#SCC
+# SCC
 class PSPLoss(torch.nn.Module):
     def __init__(self, device='cuda'):
         super(PSPLoss, self).__init__()
@@ -195,36 +196,34 @@ class PSPLoss(torch.nn.Module):
         return loss
 
 
-def get_loss(name):
-    if name == 'direction':
-        return direction_loss
-    elif name == 'difa_local':
-        return clip_difa_local
-    elif name == 'difa_w' or name == 'scc':
-        return PSPLoss()
-    else:
-        raise ValueError(name)
-
-
-clip_losses = ['direction', 'difa_local']
-
-
 class ComposedLoss(nn.Module):
+    def get_loss(self, name):
+        if name == 'direction':
+            return direction_loss
+        elif name == 'difa_local':
+            return clip_difa_local
+        elif name == 'difa_w' or name == 'scc':
+            return self.scc_loss
+        else:
+            raise ValueError(name)
+
     def __init__(self, optimization_setup):
         super().__init__()
         self.config = optimization_setup
         self.loss_funcs = optimization_setup.loss_funcs
         self.coefs = optimization_setup.loss_coefs
+        self.scc_loss = PSPLoss()
+        self.clip_losses = ['direction', 'difa_local']
 
     def forward(self, batch):
         losses = {'final': 0.}
         for name, coef in zip(self.loss_funcs, self.coefs):
-            if name in clip_losses:
+            if name in self.clip_losses:
                 for visual_encoder_key, clip_batch in batch['clip_data'].items():
                     log_vienc_key = visual_encoder_key.replace('/', '-')
-                    losses[f'{name}_{log_vienc_key}'] = get_loss(name)(clip_batch)
+                    losses[f'{name}_{log_vienc_key}'] = self.get_loss(name)(clip_batch)
                     losses['final'] += losses[f'{name}_{log_vienc_key}'] * coef
             else:
-                losses[name] = get_loss(name)(batch)
+                losses[name] = self.get_loss(name)(batch)
                 losses['final'] += losses[name] * coef
         return losses
