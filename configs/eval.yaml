@@ -6,5 +6,6 @@ ckpts:
     - original_disney_301_checkpoint0.pt
     - original_avatar_301_checkpoint0.pt
 n_examples: 7
+img_size: 256
 latents_dir: example_latents
 res_name: 5styles.png

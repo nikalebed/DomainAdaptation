@@ -46,10 +46,11 @@ def main(config_name):
         styles.append(get_image_t(net.config.training.target_class))
         src, trg = net([latents], input_is_latent=True)
         rows.append(trg)
-        arr = construct_image_grid(header=src, index=styles, imgs_t=rows, size=256)
-        img = Image.fromarray(arr.astype('uint8'), 'RGB')
 
-        img.save(os.path.join(DEFAULT_IMAGE_DIR, config.res_name))
+    arr = construct_image_grid(header=src, index=styles, imgs_t=rows, size=config.img_size)
+    img = Image.fromarray(arr.astype('uint8'), 'RGB')
+    img.save(os.path.join(DEFAULT_IMAGE_DIR, config.res_name))
 
-        if __name__ == '__main__':
-            main()
+
+if __name__ == '__main__':
+    main()
