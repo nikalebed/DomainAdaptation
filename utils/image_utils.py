@@ -90,7 +90,8 @@ def construct_image_grid(header, imgs_t: tp.List[torch.Tensor], size=256, index:
         if index is not None:
             row = torch.cat([resize_batch(index[i], size), row])
         res = torch.cat([res, row])
-    return t2im(make_grid(res, nrow=nrow))
+    grid = make_grid(res, nrow=nrow)
+    return t2im(grid, size=grid.shape[1])
 
 
 def crop_augmentation(image: torch.Tensor, size=1024, alpha=0.8):
