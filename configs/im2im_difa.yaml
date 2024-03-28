@@ -11,6 +11,7 @@ exp:
   logging: true
   step_save: 25
   trainer: im2im_difa
+  checkpoint_dir: checkpoints
 training:
   iter_num: 301
   batch_size: 2

@@ -208,7 +208,8 @@ class DomainAdaptationTrainer:
         return state_dict
 
     def get_checkpoint_name(self):
-        base = f'checkpoints/{self.config.training.da_type}_{Path(self.config.training.target_class).stem}_{self.current_step}_checkpoint'
+        base = f'{self.config.training.da_type}_{Path(self.config.training.target_class).stem}_{self.current_step}_checkpoint'
+        base = os.path.join(self.config.exp.checkpoint_dir, base)
         filename = base + '{}.pt'
         counter = 0
         while os.path.isfile(filename.format(counter)):
@@ -220,9 +221,9 @@ class DomainAdaptationTrainer:
         # if not self.config.checkpointing.is_on:
         #     return
         ckpt = self.get_checkpoint()
-        if not os.path.exists('checkpoints'):
+        if not os.path.exists(self.config.exp.checkpoint_dir):
             # Create a new directory because it does not exist
-            os.makedirs('checkpoints')
+            os.makedirs(self.config.exp.checkpoint_dir)
         torch.save(ckpt, self.get_checkpoint_name())
 
     @torch.no_grad()

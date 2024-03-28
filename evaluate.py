@@ -7,7 +7,6 @@ from utils.image_utils import get_image_t, construct_image_grid
 from PIL import Image
 
 DEFAULT_CONFIG_DIR = 'configs'
-DEFAULT_CHECKPOINT_DIR = 'checkpoints'
 DEFAULT_IMAGE_DIR = 'images'
 
 
@@ -42,7 +41,7 @@ def main(config_name):
     rows = []
 
     for ckpt in config.ckpts:
-        net = Inferencer((os.path.join(DEFAULT_CHECKPOINT_DIR, ckpt)))
+        net = Inferencer((os.path.join(config.checkpoints_dir, ckpt)))
         styles.append(get_image_t(net.config.training.target_class))
         src, trg = net([latents], input_is_latent=True)
         rows.append(trg)

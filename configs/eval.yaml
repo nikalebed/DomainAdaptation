@@ -8,4 +8,5 @@ ckpts:
 n_examples: 7
 img_size: 256
 latents_dir: example_latents
+checkpoints_dir: checkpoints
 res_name: 5styles.png

@@ -70,7 +70,7 @@ def direction_loss(
 
     return cosine_loss(edit_im_direction, edit_domain_direction).mean()
 
-
+#attentive style-loss
 def clip_difa_local(
         clip_batch: tp.Dict[str, tp.Dict]
 ):
@@ -84,7 +84,7 @@ def clip_difa_local(
     attn_weights = torch.bmm(tgt_tokens, style_tokens.permute(0, 2, 1))
 
     cost_matrix = 1 - attn_weights
-    B, N, M = cost_matrix.shape
+
     row_values, row_indices = cost_matrix.min(dim=2)
     col_values, col_indices = cost_matrix.min(dim=1)
 
@@ -95,6 +95,7 @@ def clip_difa_local(
     return overall.max(dim=1)[0].mean()
 
 
+#SCC
 class PSPLoss(torch.nn.Module):
     def __init__(self, device='cuda'):
         super(PSPLoss, self).__init__()
@@ -194,21 +195,12 @@ class PSPLoss(torch.nn.Module):
         return loss
 
 
-class CLIPLoss(torch.nn.Module):
-    def forward(self, batch):
-        losses = {}
-        for loss in self.loss_funcs:
-            for visual_encoder_key, clip_batch in batch['clip_data'].items():
-                log_vienc_key = visual_encoder_key.replace('/', '-')
-                losses[f'{loss}_{log_vienc_key}'] = self.loss_registry[loss](clip_batch)
-
-
 def get_loss(name):
     if name == 'direction':
         return direction_loss
     elif name == 'difa_local':
         return clip_difa_local
-    elif name == 'difa_w':
+    elif name == 'difa_w' or name == 'scc':
         return PSPLoss()
     else:
         raise ValueError(name)
