@@ -14,3 +14,4 @@ dlib
 gdown
 click
 ninja
+torchmetrics
