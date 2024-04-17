@@ -110,6 +110,10 @@ SOURCES = {
         'uncompressed_dir': '',
         'root_located': True
     },
+    'model_ir_se50': {
+        'id': '1KW7bjndL3QG3sxBbZxreGHigcCCpsDgn',
+        'name': 'model_ir_se50.pth'
+    },
 }
 
 

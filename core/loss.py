@@ -3,6 +3,7 @@ from core import lpips
 import typing as tp
 import torch
 import torch.nn.functional as F
+from facial_recognition.model_irse import Backbone
 
 
 def cosine_loss(x, y):
@@ -98,11 +99,11 @@ def clip_difa_local(
 
 # SCC
 class PSPLoss(torch.nn.Module):
-    def __init__(self, device='cuda'):
+    def __init__(self, device='cuda', num_keep_first=7):
         super(PSPLoss, self).__init__()
 
         self.device = device
-        self.num_keep_first = 7
+        self.num_keep_first = num_keep_first
         self.psp_loss_type = 'dynamic'
         self.delta_w_type = 'mean'
         self.sliding_window_size = 50
@@ -196,6 +197,43 @@ class PSPLoss(torch.nn.Module):
         return loss
 
 
+class IDLoss(nn.Module):
+    def __init__(self, model_path):
+        super(IDLoss, self).__init__()
+        print('Loading ResNet ArcFace')
+        self.facenet = Backbone(input_size=112, num_layers=50, drop_ratio=0.6, mode='ir_se')
+        self.facenet.load_state_dict(torch.load(model_path))
+        self.pool = torch.nn.AdaptiveAvgPool2d((256, 256))
+        self.face_pool = torch.nn.AdaptiveAvgPool2d((112, 112))
+        self.facenet.eval()
+        self.facenet.cuda()
+        # self.opts = opts
+
+    def extract_feats(self, x):
+        if x.shape[2] != 256:
+            x = self.pool(x)
+        x = x[:, :, 35:223, 32:220]  # Crop interesting region
+        x = self.face_pool(x)
+        x_feats = self.facenet(x)
+        return x_feats
+
+    def forward(self, batch):
+        y = batch['pixel_data']['src_img']
+        y_hat = batch['pixel_data']['trg_img']
+        n_samples = y.shape[0]
+        y_feats = self.extract_feats(y)  # Otherwise use the feature from there
+        y_hat_feats = self.extract_feats(y_hat)
+        y_feats = y_feats.detach()
+        loss = 0
+        count = 0
+        for i in range(n_samples):
+            diff_target = y_hat_feats[i].dot(y_feats[i])
+            loss += 1 - diff_target
+            count += 1
+
+        return loss / count
+
+
 class ComposedLoss(nn.Module):
     def get_loss(self, name):
         if name == 'direction':
@@ -204,6 +242,8 @@ class ComposedLoss(nn.Module):
             return clip_difa_local
         elif name == 'difa_w' or name == 'scc':
             return self.scc_loss
+        elif name == 'id':
+            return self.id_loss
         else:
             raise ValueError(name)
 
@@ -212,7 +252,8 @@ class ComposedLoss(nn.Module):
         self.config = optimization_setup
         self.loss_funcs = optimization_setup.loss_funcs
         self.coefs = optimization_setup.loss_coefs
-        self.scc_loss = PSPLoss()
+        self.scc_loss = PSPLoss(num_keep_first=optimization_setup.num_keep_first)
+        self.id_loss = IDLoss(optimization_setup.face_rec_path)
         self.clip_losses = ['direction', 'difa_local']
 
     def forward(self, batch):
