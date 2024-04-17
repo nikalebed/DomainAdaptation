@@ -79,7 +79,15 @@ class Inferencer(nn.Module):
             latents = self.source_generator.style(latents)
             kwargs['input_is_latent'] = True
 
+        style_mixing = kwargs.pop('style_mixing', False)
+        if style_mixing:
+            if latents[0].ndim < 3:
+                latents[0] = latents[0].unsqueeze(1).repeat(1, 18, 1)
+            latents[0][:, style_mixing['m']:] = (1 - style_mixing['alpha']) * latents[0][:, style_mixing['m']:] + \
+                                                style_mixing['alpha'] * style_mixing['ref_latents'][style_mixing['m']:]
+
         src_imgs, _ = self.source_generator(latents, **kwargs)
+
         if not kwargs.get('truncation', False):
             kwargs['truncation'] = 1
         if self.config.training.da_type == 'original':

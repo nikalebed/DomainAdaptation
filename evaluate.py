@@ -78,7 +78,9 @@ def main(config_name):
 
     for ckpt in config.ckpts:
         net = Inferencer((os.path.join(config.checkpoints_dir, ckpt)))
+        print(net.config.training.target_class)
         metrics[net.config.training.target_class] = eval.calc_metrics(net)
+        print(metrics[net.config.training.target_class])
 
     pprint(metrics)
 

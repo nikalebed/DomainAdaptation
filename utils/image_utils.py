@@ -79,19 +79,23 @@ def construct_paper_image_grid(img: torch.Tensor):
     return base_fig
 
 
-def construct_image_grid(header, imgs_t: tp.List[torch.Tensor], size=256, index: tp.List[torch.Tensor] = None):
-    res = torch.zeros(1, 3, size, size)
-    res = torch.cat([res, resize_batch(header, size)])
-    nrow = header.shape[0]
+def construct_image_grid(imgs_t: tp.List[torch.Tensor], header=None, size=256, index: tp.List[torch.Tensor] = None):
+    nrow = imgs_t[0].shape[0]
     if index is not None:
         nrow += 1
-    for i in range(len(index)):
+    res = torch.zeros(0, 3, size, size)
+
+    if header is not None:
+        res = torch.zeros(1, 3, size, size)
+        res = torch.cat([res, resize_batch(header, size)])
+
+    for i in range(len(imgs_t)):
         row = resize_batch(imgs_t[i], size)
         if index is not None:
             row = torch.cat([resize_batch(index[i], size), row])
         res = torch.cat([res, row])
     grid = make_grid(res, nrow=nrow)
-    return t2im(grid, size=grid.shape[1])
+    return t2im(grid, size=grid.shape[1:])
 
 
 def crop_augmentation(image: torch.Tensor, size=1024, alpha=0.8):
