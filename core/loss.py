@@ -217,9 +217,13 @@ class IDLoss(nn.Module):
         x_feats = self.facenet(x)
         return x_feats
 
-    def forward(self, batch):
-        y = batch['pixel_data']['src_img']
+    def forward(self, batch, src=True):
+        if src:
+            y = batch['pixel_data']['src_img']
+        else:
+            y = batch['pixel_data']['trg_ref']
         y_hat = batch['pixel_data']['trg_img']
+
         n_samples = y.shape[0]
         y_feats = self.extract_feats(y)  # Otherwise use the feature from there
         y_hat_feats = self.extract_feats(y_hat)
@@ -237,13 +241,15 @@ class IDLoss(nn.Module):
 class ComposedLoss(nn.Module):
     def get_loss(self, name):
         if name == 'direction':
-            return direction_loss
+            return direction_loss, {}
         elif name == 'difa_local':
-            return clip_difa_local
+            return clip_difa_local, {}
         elif name == 'difa_w' or name == 'scc':
-            return self.scc_loss
+            return self.scc_loss, {}
         elif name == 'id':
-            return self.id_loss
+            return self.id_loss, {'src': True}
+        elif name == 'ref_id':
+            return self.id_loss, {'src': False}
         else:
             raise ValueError(name)
 
@@ -265,6 +271,7 @@ class ComposedLoss(nn.Module):
                     losses[f'{name}_{log_vienc_key}'] = self.get_loss(name)(clip_batch)
                     losses['final'] += losses[f'{name}_{log_vienc_key}'] * coef
             else:
-                losses[name] = self.get_loss(name)(batch)
+                loss_f, kwargs = self.get_loss(name)
+                losses[name] = loss_f(batch, **kwargs)
                 losses['final'] += losses[name] * coef
         return losses
