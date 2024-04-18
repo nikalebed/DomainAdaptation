@@ -204,7 +204,7 @@ class DomainAdaptationTrainer:
                     visual_encoder_key] = self.clip_batch_generator.clip_encode_image(
                     model,
                     self.style_image_inverted_A,
-                    preprocess)
+                    preprocess).detach()
 
     def setup_image_inverter(self):
         if self.config.inversion.method == 'e4e':

@@ -58,6 +58,8 @@ class BaseClipBatchGenerator:
             #     self.src_embeddings[clip_key] = self.clip_encode_image(m, self.style_image_inverted_A, p)
             # elif self.config.emb.type == 'text':
             #     ...
+            elif self.config.emb.type == 'proj':
+                ...
             else:
                 raise ValueError('Unknown emb type')
 
