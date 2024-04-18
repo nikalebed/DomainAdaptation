@@ -230,48 +230,4 @@ class IDLoss(nn.Module):
         y_feats = y_feats.detach()
         loss = 0
         count = 0
-        for i in range(n_samples):
-            diff_target = y_hat_feats[i].dot(y_feats[i])
-            loss += 1 - diff_target
-            count += 1
-
-        return loss / count
-
-
-class ComposedLoss(nn.Module):
-    def get_loss(self, name):
-        if name == 'direction':
-            return direction_loss, {}
-        elif name == 'difa_local':
-            return clip_difa_local, {}
-        elif name == 'difa_w' or name == 'scc':
-            return self.scc_loss, {}
-        elif name == 'id':
-            return self.id_loss, {'src': True}
-        elif name == 'ref_id':
-            return self.id_loss, {'src': False}
-        else:
-            raise ValueError(name)
-
-    def __init__(self, optimization_setup):
-        super().__init__()
-        self.config = optimization_setup
-        self.loss_funcs = optimization_setup.loss_funcs
-        self.coefs = optimization_setup.loss_coefs
-        self.scc_loss = PSPLoss(num_keep_first=optimization_setup.num_keep_first)
-        self.id_loss = IDLoss(optimization_setup.face_rec_path)
-        self.clip_losses = ['direction', 'difa_local']
-
-    def forward(self, batch):
-        losses = {'final': 0.}
-        for name, coef in zip(self.loss_funcs, self.coefs):
-            if name in self.clip_losses:
-                for visual_encoder_key, clip_batch in batch['clip_data'].items():
-                    log_vienc_key = visual_encoder_key.replace('/', '-')
-                    losses[f'{name}_{log_vienc_key}'] = self.get_loss(name)(clip_batch)
-                    losses['final'] += losses[f'{name}_{log_vienc_key}'] * coef
-            else:
-                loss_f, kwargs = self.get_loss(name)
-                losses[name] = loss_f(batch, **kwargs)
-                losses['final'] += losses[name] * coef
-        return losses
+        f

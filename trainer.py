@@ -198,6 +198,13 @@ class DomainAdaptationTrainer:
 
     def setup_clip_batch_generator(self):
         self.clip_batch_generator = DiFABaseClipBatchGenerator(self.config)
+        if self.config.emb.type == 'proj':
+            for visual_encoder_key, (model, preprocess) in self.clip_batch_generator.batch_generators.items():
+                self.clip_batch_generator.src_embeddings[
+                    visual_encoder_key] = self.clip_batch_generator.clip_encode_image(
+                    model,
+                    self.style_image_inverted_A,
+                    preprocess)
 
     def setup_image_inverter(self):
         if self.config.inversion.method == 'e4e':
