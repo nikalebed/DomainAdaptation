@@ -222,13 +222,16 @@ class DomainAdaptationTrainer:
         return state_dict
 
     def get_checkpoint_name(self):
-        base = f'{self.config.training.da_type}_{Path(self.config.training.target_class).stem}_{self.current_step}_checkpoint'
-        base = os.path.join(self.config.exp.checkpoint_dir, base)
-        filename = base + '{}.pt'
-        counter = 0
-        while os.path.isfile(filename.format(counter)):
-            counter += 1
-        filename = filename.format(counter)
+        if self.config.exp.ckpt_name is None:
+            base = f'{self.config.training.da_type}_{Path(self.config.training.target_class).stem}_{self.current_step}_checkpoint'
+            base = os.path.join(self.config.exp.checkpoint_dir, base)
+            filename = base + '{}.pt'
+            counter = 0
+            while os.path.isfile(filename.format(counter)):
+                counter += 1
+            filename = filename.format(counter)
+        else:
+            filename = self.config.exp.ckpt_name
         return filename
 
     def save_checkpoint(self):
