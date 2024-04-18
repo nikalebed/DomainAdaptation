@@ -46,4 +46,28 @@ def visualize_style_mixing(ckpt_name):
 
 
 @click.command()
-@click.argument('config_name', 
+@click.argument('config_name', default='eval.yaml')
+def main(config_name):
+    config_path = os.path.join(DEFAULT_CONFIG_DIR, config_name)
+    config = OmegaConf.load(config_path)
+    latents = get_latents(config.latents_dir, config.n_examples)
+    latents = latents.to('cuda')
+
+    styles = []
+    src = None
+    rows = []
+    for ckpt in config.ckpts:
+        net = Inferencer((os.path.join(config.checkpoints_dir, ckpt)))
+        style_path = net.config.training.target_class
+
+        styles.append(get_image_t(style_path))
+        src, trg = net([latents], input_is_latent=True)
+        rows.append(trg)
+
+    arr = construct_image_grid(header=src, index=styles, imgs_t=rows, size=config.img_size)
+    img = Image.fromarray(arr.astype('uint8'), 'RGB')
+    img.save(os.path.join(DEFAULT_IMAGE_DIR, config.res_name))
+
+
+if __name__ == '__main__':
+    main()
