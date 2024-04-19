@@ -18,6 +18,8 @@ def get_inverter(name):
         return e4eInverter()
     elif name == 'ii2s':
         return II2SInverter()
+    elif name == 'ref':
+        return refInverter()
     raise ValueError()
 
 
@@ -55,3 +57,50 @@ class e4eInverter(BaseInverter):
         imgs_t = resize_batch(imgs_t, 256).to(self.device)
         images, w_plus = self.net(imgs_t, randomize_noise=False, return_latents=True)
         return w_plus
+
+
+from core import lpips
+from core.loss import IDLoss
+from tqdm import tqdm
+from torch.optim import Adam
+from gan_models.sg2_model import Generator
+
+
+class refInverter(BaseInverter):
+    def __init__(self, device='cuda'):
+        super().__init__()
+        self.device = device
+        self.id_loss = IDLoss('pretrained/model_ir_se50.pth')
+        self.percept = lpips.PerceptualLoss(model="net-lin", net="vgg", use_gpu='True')
+        self.percept.eval()
+        self.l2 = torch.nn.MSELoss()
+
+        checkpoint_path = 'pretrained/StyleGAN2/stylegan2-ffhq-config-f.pt'
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+
+        self.net = Generator(1024, 512, 8,
+                             channel_multiplier=2).to(device)
+        self.net.load_state_dict(checkpoint["g_ema"], strict=False)
+        self.latent_avg = checkpoint["latent_avg"].unsqueeze(0)
+
+    def get_latents(self, imgs_t):
+        # latents = self.latent_avg.clone().detach().cuda().unsqueeze(1).repeat(1, 18, 1)
+        inverter = e4eInverter()
+        latents = inverter.get_latents(imgs_t).clone().detach().cuda()
+        latents.requires_grad = True
+
+        opt = Adam([latents], lr=0.01, betas=(0.9, 0.999))
+
+        for i in tqdm(range(500)):
+            opt.zero_grad()
+            src_inv, _ = self.net([latents], input_is_latent=True)
+            loss = self.percept(src_inv, imgs_t).sum()
+            loss = loss + self.id_loss({'pixel_data': {
+                'src_img': src_inv,
+                'trg_img': imgs_t
+            }})
+            loss = loss + self.l2(src_inv, imgs_t)
+            loss.backward()
+            opt.step()
+
+        return latents

@@ -95,9 +95,21 @@ class DomainAdaptationTrainer:
 
     def setup_style_image(self):
         style_image_t = get_image_t(self.config.training.target_class, self.source_generator.generator.size)
-        style_inverter = get_inverter(self.config.inversion.method_for_latent)
-        self.style_image_latent = style_inverter.get_latents(
-            style_image_t).detach().clone()
+
+        style = Path(self.config.training.target_class).stem
+        os.makedirs('example_latents/styles/', exist_ok=True)
+        latent_path = f'example_latents/styles/{self.config.inversion.method_for_latent}_{style}.pt'
+
+        if not os.path.exists(latent_path):
+            print('Inverting style image')
+            style_inverter = get_inverter(self.config.inversion.method_for_latent)
+            self.style_image_latent = style_inverter.get_latents(
+                style_image_t).detach().clone()
+            torch.save(self.style_image_latent, latent_path)
+        else:
+            print('Loading style latents')
+            self.style_image_latent = torch.load(latent_path)
+
         self.style_image_resized = resize_batch(style_image_t, 256)
         self.style_image_inverted_A = self.forward_source(
             [self.style_image_latent], input_is_latent=True)
@@ -235,9 +247,7 @@ class DomainAdaptationTrainer:
         # if not self.config.checkpointing.is_on:
         #     return
         ckpt = self.get_checkpoint()
-        if not os.path.exists(self.config.exp.checkpoint_dir):
-            # Create a new directory because it does not exist
-            os.makedirs(self.config.exp.checkpoint_dir)
+        os.makedirs(self.config.exp.checkpoint_dir, exist_ok=True)
         torch.save(ckpt, self.get_checkpoint_name())
 
     @torch.no_grad()
