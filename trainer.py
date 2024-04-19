@@ -6,7 +6,7 @@ from core.parametrization import Parametrization
 from utils.sg2_utils import get_stylegan_conv_dimensions, mixing_noise
 from core.loss import ComposedLoss
 import typing as tp
-from core.inverters import BaseInverter, II2SInverter, e4eInverter
+from core.inverters import BaseInverter, get_inverter
 from core.batch_generators import DiFABaseClipBatchGenerator
 from pathlib import Path
 from utils.image_utils import t2im, construct_paper_image_grid, get_image_t, resize_batch
@@ -95,8 +95,8 @@ class DomainAdaptationTrainer:
 
     def setup_style_image(self):
         style_image_t = get_image_t(self.config.training.target_class, self.source_generator.generator.size)
-
-        self.style_image_latent = self.image_inverter.get_latents(
+        style_inverter = get_inverter(self.config.inversion.method_for_latent)
+        self.style_image_latent = style_inverter.get_latents(
             style_image_t).detach().clone()
         self.style_image_resized = resize_batch(style_image_t, 256)
         self.style_image_inverted_A = self.forward_source(
@@ -158,8 +158,8 @@ class DomainAdaptationTrainer:
             'trg_ref': self.style_image_inverted_A
         }
         inv_data = {
-            'src_latents': self.image_inverter.get_latents(frozen_img, grad=True),
-            'trg_latents': self.image_inverter.get_latents(trainable_img, grad=True),
+            'src_latents': self.image_inverter.get_latents(frozen_img),
+            'trg_latents': self.image_inverter.get_latents(trainable_img),
             'iters': self.current_step
         }
         return {
@@ -207,10 +207,7 @@ class DomainAdaptationTrainer:
                     preprocess).detach()
 
     def setup_image_inverter(self):
-        if self.config.inversion.method == 'e4e':
-            self.image_inverter = e4eInverter()
-        elif self.config.inversion.method == 'ii2s':
-            self.image_inverter = II2SInverter()
+        self.image_inverter = get_inverter(self.config.inversion.method)
 
     def get_checkpoint(self):
         state_dict = {
