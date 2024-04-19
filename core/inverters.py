@@ -85,6 +85,7 @@ class refInverter(BaseInverter):
 
     def get_latents(self, imgs_t):
         # latents = self.latent_avg.clone().detach().cuda().unsqueeze(1).repeat(1, 18, 1)
+        imgs_t = imgs_t.to(self.device)
         inverter = e4eInverter()
         latents = inverter.get_latents(imgs_t).clone().detach().cuda()
         latents.requires_grad = True
