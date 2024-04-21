@@ -53,7 +53,7 @@ def get_stylegan_conv_dimensions(size, channel_multiplier=2):
 class Inferencer(nn.Module):
     def __init__(self, ckpt_dir, device='cuda'):
         super().__init__()
-        ckpt = torch.load(ckpt_dir)
+        ckpt = torch.load(ckpt_dir, map_location=device)
         self.config = ckpt['config']
         self.device = device
         self.source_generator = DomainAdaptationGenerator(
@@ -71,14 +71,12 @@ class Inferencer(nn.Module):
                 get_stylegan_conv_dimensions(self.config.generator_args.stylegan2.img_size))
 
         self.model_da.load_state_dict(ckpt['trainable'])
-        self.model_da.to(self.device).eval()
-
+        self.model_da.eval()
     @torch.no_grad()
     def forward(self, latents, **kwargs):
         if not kwargs.get('input_is_latent', False):
             latents = self.source_generator.style(latents)
             kwargs['input_is_latent'] = True
-
         style_mixing = kwargs.pop('style_mixing', False)
         if style_mixing:
             if latents[0].ndim < 3:

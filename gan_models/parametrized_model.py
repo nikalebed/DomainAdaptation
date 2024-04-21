@@ -48,12 +48,12 @@ class ParametrizedModulatedConv2d(nn.Module):
         style = self.modulation(style).view(batch, 1, in_channel, 1, 1)
         weight = self.scale * self.weight * style
 
+        if params is not None:
+            weight = self.domain_modulation(weight, params)
+
         if self.demodulate:
             demod = torch.rsqrt(weight.pow(2).sum([2, 3, 4]) + 1e-8)
             weight = weight * demod.view(batch, self.out_channel, 1, 1, 1)
-
-        if params is not None:
-            weight = self.domain_modulation(weight, params)
 
         weight = weight.view(
             batch * self.out_channel, in_channel, self.kernel_size,

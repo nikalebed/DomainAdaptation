@@ -56,6 +56,10 @@ class DomainAdaptationTrainer:
         self.source_generator.freeze_layers()
         self.source_generator.to(self.device)
 
+        checkpoint_path = self.config.generator_args['checkpoint_path']
+        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+        self.latent_avg = checkpoint["latent_avg"].to(self.device)
+
     def setup_optimizer(self):
         if self.config.training.da_type == "original":
             g_reg_every = self.config.optimization_setup.g_reg_every
@@ -110,10 +114,12 @@ class DomainAdaptationTrainer:
             print('Loading style latents')
             self.style_image_latent = torch.load(latent_path)
 
+        self.style_image_latent[:, 7:] = self.latent_avg
         self.style_image_resized = resize_batch(style_image_t, 256)
         self.style_image_inverted_A = self.forward_source(
             [self.style_image_latent], input_is_latent=True)
 
+    @torch.no_grad()
     def log_target_images(self):
         style_image_resized = t2im(self.style_image_resized.squeeze())
         st_im_inverted_A = t2im(self.style_image_inverted_A.squeeze())
@@ -216,7 +222,7 @@ class DomainAdaptationTrainer:
                     visual_encoder_key] = self.clip_batch_generator.clip_encode_image(
                     model,
                     self.style_image_inverted_A,
-                    preprocess).detach()
+                    preprocess).detach().squeeze(0)
 
     def setup_image_inverter(self):
         self.image_inverter = get_inverter(self.config.inversion.method)
