@@ -9,3 +9,5 @@ img_size: 256
 latents_dir: example_latents/basic
 checkpoints_dir: checkpoints/original_coefs
 res_name: 5styles.png
+style_mixing:
+  alpha: 0

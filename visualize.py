@@ -61,7 +61,14 @@ def main(config_name):
         style_path = net.config.training.target_class
 
         styles.append(get_image_t(style_path))
-        src, trg = net([latents], input_is_latent=True)
+        style_latents = torch.zeros((18, 512))
+        if config.style_mixing.alpha > 0:
+            inverter = e4eInverter()
+            style_latents = inverter.get_latents(styles[-1]).squeeze()
+        src, trg = net([latents], style_mixing={
+            'alpha': config.style_mixing.alpha,
+            'm': 7,
+            'ref_latents': style_latents}, input_is_latent=True)
         rows.append(trg)
 
     arr = construct_image_grid(header=src, index=styles, imgs_t=rows, size=config.img_size)
