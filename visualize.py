@@ -4,9 +4,10 @@ from utils.sg2_utils import Inferencer
 import torch
 from omegaconf import OmegaConf
 from utils.image_utils import get_image_t, construct_image_grid
+from utils.common import get_style_latent
 from PIL import Image
 import numpy as np
-from core.inverters import e4eInverter
+from core.inverters import get_inverter
 
 DEFAULT_CONFIG_DIR = 'configs'
 DEFAULT_IMAGE_DIR = 'images'
@@ -27,7 +28,7 @@ def visualize_style_mixing(ckpt_name):
     for seed in range(1, 8):
         zs += [torch.from_numpy(np.random.RandomState(seed).randn(1, 512))]
     zs = [torch.cat(zs).to(torch.float32).cuda()]
-    inverter = e4eInverter()
+    inverter = get_inverter('e4e')
 
     model = Inferencer(ckpt_name)
     img_t = get_image_t(model.config.training.target_class)
@@ -58,17 +59,22 @@ def main(config_name):
     rows = []
     for ckpt in config.ckpts:
         net = Inferencer((os.path.join(config.checkpoints_dir, ckpt)))
-        style_path = net.config.training.target_class
+        if src is None:
+            src, _ = net([latents], input_is_latent=True)
 
+        style_path = net.config.training.target_class
         styles.append(get_image_t(style_path))
+
         style_latents = torch.zeros((18, 512))
         if config.style_mixing.alpha > 0:
-            inverter = e4eInverter()
-            style_latents = inverter.get_latents(styles[-1]).squeeze()
-        src, trg = net([latents], style_mixing={
+            style_latents = get_style_latent(config.style_mixing.inversion_type, styles[-1], style_path).squeeze(0)
+        style_latents = style_latents.cuda()
+
+        _, trg = net([latents], style_mixing={
             'alpha': config.style_mixing.alpha,
             'm': 7,
             'ref_latents': style_latents}, input_is_latent=True)
+
         rows.append(trg)
 
     arr = construct_image_grid(header=src, index=styles, imgs_t=rows, size=config.img_size)

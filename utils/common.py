@@ -10,6 +10,8 @@ import random
 import numpy as np
 import torchvision.transforms as transforms
 from pathlib import Path
+import os
+from core.inverters import get_inverter
 
 
 def load_clip(model_name: str, device: str):
@@ -152,3 +154,19 @@ def align_face(filepath, predictor, output_size=1024, transform_size=4096, enabl
         img = img.resize((output_size, output_size), PIL.Image.ANTIALIAS)
 
     return img
+
+
+def get_style_latent(inv_type, style_image_t, style_image_path):
+    os.makedirs('example_latents/styles/', exist_ok=True)
+    style = Path(style_image_path).stem
+    latent_path = f'example_latents/styles/{inv_type}_{style}.pt'
+    if not os.path.exists(latent_path):
+        print('Inverting style image')
+        style_inverter = get_inverter(inv_type)
+        style_image_latent = style_inverter.get_latents(
+            style_image_t).detach().clone()
+        torch.save(style_image_latent, latent_path)
+        return style_image_latent
+    else:
+        print('Loading style latents')
+        return torch.load(latent_path)
