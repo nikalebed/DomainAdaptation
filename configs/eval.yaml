@@ -4,6 +4,10 @@ ckpts:
   - original_petrus-christus_301_checkpoint0.pt
   - original_disney_301_checkpoint0.pt
   - original_sketch_301_checkpoint0.pt
+  - original_avatar_301_checkpoint0.pt
+  - original_botticelli_301_checkpoint0.pt
+  - original_elf_301_checkpoint0.pt
+  - original_posion-ivy_301_checkpoint0.pt
 n_examples: 7
 img_size: 256
 latents_dir: example_latents/basic
@@ -11,3 +15,4 @@ checkpoints_dir: checkpoints/original_coefs
 res_name: 5styles.png
 style_mixing:
   alpha: 0
+  inversion_type: e4e

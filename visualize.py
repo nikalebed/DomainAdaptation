@@ -1,10 +1,8 @@
 import os
-import click
 from utils.sg2_utils import Inferencer
 import torch
 from omegaconf import OmegaConf
 from utils.image_utils import get_image_t, construct_image_grid
-from utils.common import get_style_latent
 from PIL import Image
 import numpy as np
 from core.inverters import get_inverter
@@ -46,35 +44,26 @@ def visualize_style_mixing(ckpt_name):
     return Image.fromarray(arr.astype('uint8'), 'RGB')
 
 
-@click.command()
-@click.argument('config_name', default='eval.yaml')
-def main(config_name):
-    config_path = os.path.join(DEFAULT_CONFIG_DIR, config_name)
-    config = OmegaConf.load(config_path)
+def main():
+    conf_cli = OmegaConf.from_cli()
+    if not conf_cli.get('config_name', False):
+        raise ValueError("No config")
+    config_path = os.path.join(DEFAULT_CONFIG_DIR, conf_cli.config_name)
+    config = OmegaConf.merge(OmegaConf.load(config_path), conf_cli)
     latents = get_latents(config.latents_dir, config.n_examples)
-    latents = latents.to('cuda')
 
     styles = []
     src = None
     rows = []
     for ckpt in config.ckpts:
-        net = Inferencer((os.path.join(config.checkpoints_dir, ckpt)))
-        if src is None:
-            src, _ = net([latents], input_is_latent=True)
+        net = Inferencer((os.path.join(config.checkpoints_dir, ckpt))).cuda()
 
         style_path = net.config.training.target_class
         styles.append(get_image_t(style_path))
 
-        style_latents = torch.zeros((18, 512))
         if config.style_mixing.alpha > 0:
-            style_latents = get_style_latent(config.style_mixing.inversion_type, styles[-1], style_path).squeeze(0)
-        style_latents = style_latents.cuda()
-
-        _, trg = net([latents], style_mixing={
-            'alpha': config.style_mixing.alpha,
-            'm': 7,
-            'ref_latents': style_latents}, input_is_latent=True)
-
+            net.add_style_mixing(config.style_mixing)
+        src, trg = net([latents.clone()], input_is_latent=True)
         rows.append(trg)
 
     arr = construct_image_grid(header=src, index=styles, imgs_t=rows, size=config.img_size)

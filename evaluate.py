@@ -2,7 +2,6 @@ import clip
 from utils.common import load_clip
 import torch.nn.functional as F
 import os
-import click
 from utils.sg2_utils import Inferencer
 import torch
 from omegaconf import OmegaConf
@@ -53,7 +52,6 @@ class Evaluator:
         for i in tqdm(range((self.n_samples + self.batch_size - 1) // self.batch_size)):
             zs = [torch.randn(min(self.batch_size, self.n_samples - i * self.batch_size), 512, device=self.device)]
             src, trg = net(zs)
-
             lpips += self.lpips(resize_batch(src, 256), resize_batch(trg, 256)).sum().item()
             cs += self.clip_score(trg, style).sum().item()
 
@@ -66,23 +64,36 @@ class Evaluator:
 DEFAULT_CONFIG_DIR = 'configs'
 
 
-@click.command()
-@click.argument('config_name', default='eval.yaml')
 def main(config_name):
+    conf_cli = OmegaConf.from_cli()
+    if not conf_cli.get('config_name', False):
+        raise ValueError("No config")
+    config_path = os.path.join(DEFAULT_CONFIG_DIR, conf_cli.config_name)
+    config = OmegaConf.merge(OmegaConf.load(config_path), conf_cli)
+
     eval = Evaluator()
 
-    config_path = os.path.join(DEFAULT_CONFIG_DIR, config_name)
-    config = OmegaConf.load(config_path)
-
-    metrics = {}
+    mean_key = f'mean over {len(config.ckpts)} styles'
+    metrics = {mean_key: {
+        'LPIPS': 0.,
+        'CLIPScore': 0.
+    }}
 
     for ckpt in config.ckpts:
         net = Inferencer((os.path.join(config.checkpoints_dir, ckpt)))
-        print(net.config.training.target_class)
-        metrics[net.config.training.target_class] = eval.calc_metrics(net)
-        print(metrics[net.config.training.target_class])
+        if config.style_mixing.alpha > 0:
+            net.add_style_mixing(config.style_mixing)
+        style = Path(net.config.training.target_class).stem
+        metrics[style] = eval.calc_metrics(net)
+        print(metrics[style])
+        for key in metrics[mean_key]:
+            metrics[mean_key][key] += metrics[style][key]
 
     pprint(metrics)
+
+    import pandas as pd
+    os.makedirs('metrics', exist_ok=True)
+    pd.DataFrame.from_dict(metrics, orient='index').to_csv('metrics/' + config.res_name)
 
 
 if __name__ == '__main__':
