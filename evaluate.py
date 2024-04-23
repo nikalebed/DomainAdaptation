@@ -77,7 +77,7 @@ def main():
 
     evaluator = Evaluator(n_samples=config.n_samples, batch_size=config.batch_size)
 
-    mean_key = f'mean over {len(config.ckpts)} styles'
+    mean_key = f'Mean over {len(config.ckpts)} styles'
     metrics = {mean_key: {
         'LPIPS_src': 0.,
         'LPIPS_ref': 0.,

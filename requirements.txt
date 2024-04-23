@@ -15,3 +15,4 @@ gdown
 click
 ninja
 torchmetrics
+pandas
