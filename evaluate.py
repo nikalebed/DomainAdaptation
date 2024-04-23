@@ -8,7 +8,7 @@ from omegaconf import OmegaConf
 from core import lpips
 from pathlib import Path
 from pprint import pprint
-from utils.image_utils import resize_batch
+from utils.image_utils import resize_batch, get_image_t
 from tqdm import tqdm
 
 
@@ -43,20 +43,24 @@ class Evaluator:
     def calc_metrics(self, net):
         style_path = net.config.training.target_class
         style = Path(style_path).stem
+        style_img = get_image_t(style_path, size=256)
 
         torch.manual_seed(self.seed)
 
-        lpips = 0
+        lpips_src = 0
+        lpips_ref = 0
         cs = 0
 
         for i in tqdm(range((self.n_samples + self.batch_size - 1) // self.batch_size)):
             zs = [torch.randn(min(self.batch_size, self.n_samples - i * self.batch_size), 512, device=self.device)]
             src, trg = net(zs)
-            lpips += self.lpips(resize_batch(src, 256), resize_batch(trg, 256)).sum().item()
+            lpips_src += self.lpips(resize_batch(src, 256), resize_batch(trg, 256)).sum().item()
+            lpips_ref += self.lpips(style_img.repeat(src.size(0), 1, 1, 1), resize_batch(trg, 256)).sum().item()
             cs += self.clip_score(trg, style).sum().item()
 
         return {
-            'LPIPS': lpips / self.n_samples,
+            'LPIPS_src': lpips_src / self.n_samples,
+            'LPIPS_ref': lpips_ref / self.n_samples,
             'CLIPScore': cs / self.n_samples
         }
 
@@ -64,18 +68,19 @@ class Evaluator:
 DEFAULT_CONFIG_DIR = 'configs'
 
 
-def main(config_name):
+def main():
     conf_cli = OmegaConf.from_cli()
     if not conf_cli.get('config_name', False):
         raise ValueError("No config")
     config_path = os.path.join(DEFAULT_CONFIG_DIR, conf_cli.config_name)
     config = OmegaConf.merge(OmegaConf.load(config_path), conf_cli)
 
-    eval = Evaluator()
+    evaluator = Evaluator(n_samples=config.n_samples, batch_size=config.batch_size)
 
     mean_key = f'mean over {len(config.ckpts)} styles'
     metrics = {mean_key: {
-        'LPIPS': 0.,
+        'LPIPS_src': 0.,
+        'LPIPS_ref': 0.,
         'CLIPScore': 0.
     }}
 
@@ -84,11 +89,14 @@ def main(config_name):
         if config.style_mixing.alpha > 0:
             net.add_style_mixing(config.style_mixing)
         style = Path(net.config.training.target_class).stem
-        metrics[style] = eval.calc_metrics(net)
+        print(style)
+        metrics[style] = evaluator.calc_metrics(net)
         print(metrics[style])
         for key in metrics[mean_key]:
             metrics[mean_key][key] += metrics[style][key]
 
+    for key in metrics[mean_key]:
+        metrics[mean_key][key] /= len(config.ckpts)
     pprint(metrics)
 
     import pandas as pd

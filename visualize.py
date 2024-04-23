@@ -68,6 +68,7 @@ def main():
 
     arr = construct_image_grid(header=src, index=styles, imgs_t=rows, size=config.img_size)
     img = Image.fromarray(arr.astype('uint8'), 'RGB')
+    os.makedirs(DEFAULT_IMAGE_DIR, exist_ok=True)
     img.save(os.path.join(DEFAULT_IMAGE_DIR, config.res_name))
 
 

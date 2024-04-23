@@ -73,7 +73,7 @@ class Inferencer(nn.Module):
         else:
             self.model_da = Parametrization(
                 get_stylegan_conv_dimensions(self.config.generator_args.stylegan2.img_size))
-
+        self.model_da = self.model_da.to(self.device)
         self.model_da.load_state_dict(ckpt['trainable'])
         self.model_da.eval()
 

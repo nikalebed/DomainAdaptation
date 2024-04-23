@@ -16,3 +16,5 @@ res_name: 5styles.png
 style_mixing:
   alpha: 0
   inversion_type: e4e
+n_samples: 1000
+batch_size: 20
