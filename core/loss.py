@@ -72,6 +72,23 @@ def direction_loss(
     return cosine_loss(edit_im_direction, edit_domain_direction).mean()
 
 
+class DomainDiversity(torch.nn.Module):
+    def __init__(self):
+        super(DomainDiversity, self).__init__()
+        self.percept = lpips.PerceptualLoss(model="net-lin", net="vgg", use_gpu=True)
+        self.percept.eval()
+        from torchvision import transforms
+        self.t = transforms.Resize(256)
+
+    def forward(self, batch):
+        src = self.t(batch['pixel_data']['src_img'])
+        N, C, H, W = src.shape
+        A_mean = self.t(batch['pixel_data']['A_mean']).repeat(N, 1, 1, 1)
+        B_mean = self.t(batch['pixel_data']['B_mean']).repeat(N, 1, 1, 1)
+        trg = self.t(batch['pixel_data']['trg_img'])
+        return F.l1_loss(self.percept(src, A_mean), self.percept(trg, B_mean))
+
+
 # attentive style-loss
 def clip_difa_local(
         clip_batch: tp.Dict[str, tp.Dict]
@@ -250,6 +267,8 @@ class ComposedLoss(nn.Module):
             return self.id_loss, {'src': True}
         elif name == 'ref_id':
             return self.id_loss, {'src': False}
+        elif name == 'dom_div':
+            return self.dom_div, {}
         else:
             raise ValueError(name)
 
@@ -260,6 +279,7 @@ class ComposedLoss(nn.Module):
         self.coefs = optimization_setup.loss_coefs
         self.scc_loss = PSPLoss(num_keep_first=optimization_setup.num_keep_first)
         self.id_loss = IDLoss(optimization_setup.face_rec_path)
+        self.dom_div = DomainDiversity()
         self.clip_losses = ['direction', 'difa_local']
 
     def forward(self, batch):

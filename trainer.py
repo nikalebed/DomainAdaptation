@@ -164,7 +164,9 @@ class DomainAdaptationTrainer:
         pixel_data = {
             'src_img': frozen_img,
             'trg_img': trainable_img,
-            'trg_ref': self.style_image_inverted_A
+            'trg_ref': self.style_image_inverted_A,
+            'A_mean': self.forward_source([self.latent_avg.unsqueeze(0)]),
+            'B_mean': self.forward_trainable([self.latent_avg.unsqueeze(0)])[0]
         }
         inv_data = {
             'src_latents': self.image_inverter.get_latents(frozen_img),
