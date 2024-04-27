@@ -164,14 +164,14 @@ class DomainAdaptationTrainer:
                                 self.config.training.device)
         return self.source_generator.style(sample_z)[0].unsqueeze(1)
 
-    def style_mix_style_latent(self, batch_size=3, indx=range(7, 18), alpha=0.5):
+    def stylemix_style_latent(self, batch_size=3, indx=range(7, 18), alpha=0.5):
         w = self.sample_w(batch_size * 18).reshape(batch_size, 18, -1)
         in_latent = self.style_image_latent.clone().repeat(batch_size, 1, 1)
         in_latent[:, indx] = alpha * in_latent[:, indx] + (1 - alpha) * w[:, indx]
         return in_latent
 
     def update_src_emb(self):
-        sm_latent = self.style_mix_style_latent()
+        sm_latent = self.stylemix_style_latent(batch_size=self.config.training.stylemix_latent)
         inv_style_batch = self.forward_source([sm_latent])
         for visual_encoder_key, (model, preprocess) in self.clip_batch_generator.batch_generators.items():
             self.clip_batch_generator.src_embeddings[
@@ -183,7 +183,8 @@ class DomainAdaptationTrainer:
     def encode_batch(self, sample_z):
         frozen_img = self.forward_source(sample_z)
         trainable_img, params = self.forward_trainable(sample_z)
-        # self.update_src_emb()
+        if self.config.training.stylemix_latent:
+            self.update_src_emb()
         clip_data = self.clip_batch_generator.calc_batch(frozen_img, trainable_img)
         pixel_data = {
             'src_img': frozen_img,

@@ -19,6 +19,7 @@ training:
   generator: stylegan2
   phase: all
   da_type: parametrization
+  stylemix_latent: 3
   source_class: Real Person
   target_class: ./styles/joker.jpeg
   auto_layer_k: 16
