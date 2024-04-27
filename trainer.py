@@ -196,7 +196,7 @@ class DomainAdaptationTrainer:
             'A_mean': self.forward_source([self.latent_avg.unsqueeze(0)], input_is_latent=True),
             'B_mean': self.forward_trainable([self.latent_avg.unsqueeze(0)], input_is_latent=True)[0]
         }
-        ref_img, _ = self.forward_source(self.zs_for_logging[:4])
+        ref_img, _ = self.forward_trainable([self.zs_for_logging[0][0][:2]])
         inv_data = {
             'src_latents': self.image_inverter.get_latents(frozen_img),
             'trg_latents': self.image_inverter.get_latents(trainable_img),

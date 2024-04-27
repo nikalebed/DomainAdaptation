@@ -102,9 +102,9 @@ class PerceptualLoss(nn.Module):
         self.t = transforms.Resize(256)
 
     def forward(self, batch):
-        fake_feat = self.perc(self.t(batch['pixel_data']['src_img']))
-        real_feat = self.perc(self.t(batch['pixel_data']['trg_img']))
-        return self.percept(fake_feat, real_feat).sum() / len(fake_feat)
+        fake_feat = self.t(batch['pixel_data']['src_img'])
+        real_feat = self.t(batch['pixel_data']['trg_img'])
+        return self.perc(fake_feat, real_feat).sum() / len(fake_feat)
 
 
 class FaceDiversityLoss(torch.nn.Module):
@@ -163,20 +163,21 @@ def clip_difa_local(
 
 
 class GradualStyleLoss(torch.nn.Module):
-    def __init__(self, *args, **kwargs):
-        super().__init__(args, kwargs)
+    def __init__(self):
+        super(GradualStyleLoss, self).__init__()
         self.prev = None
         self.psp_alpha = 0.6
         self.sliding_window_size = 50
         self.num_keep_first = 7
         self.iter = None
+        self.device = 'cuda'
 
     def dynamic_loss(self, target_encodings):
         # Get the conditional vector to mask special enough channels
         num_channel = len(self.prev)
-        delta_w = target_encodings - self.prev
+        delta_w = (target_encodings - self.prev).mean(dim=1)
         order = delta_w.abs().argsort()
-        chosen_order = order[:int(self.args.psp_alpha * num_channel)]
+        chosen_order = order[:int(self.psp_alpha * num_channel)]
         # chosen_order = order[-int(self.args.psp_alpha * num_channel)::]  # Choose most important channels
         cond = torch.zeros(num_channel).to(self.device)
         cond[chosen_order] = 1
@@ -190,8 +191,8 @@ class GradualStyleLoss(torch.nn.Module):
         return loss
 
     def forward(self, batch):
-        batch_size = batch['inv_data']['ref_img'].shape[0]
-        target_encodings = batch['inv_data']['ref_img'].reshape(batch_size, -1)
+        batch_size = batch['inv_data']['ref_latents'].shape[0]
+        target_encodings = batch['inv_data']['ref_latents'].reshape(batch_size, -1)
 
         iters = batch['inv_data']['iters']
 
