@@ -85,18 +85,15 @@ SOURCES = {
         'link': 'http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2',
         'name': 'shape_predictor_68_face_landmarks.dat.bz2'
     },
-    'restyle_psp': {
-        'id': '1nbxCIVw9H3YnQsoIPykNEFwWJnHVHlVd',
-        'name': 'restyle_psp_ffhq_encode.pt'
-    },
     'e4e': {
         'id': '1o6ijA3PkcewZvwJJ73dJ0fxhndn0nnh7',
         'name': 'e4e_ffhq_encode.pt'
     },
     'checkpoints': {
-        'link': 'https://www.dropbox.com/s/r8816i09t9n94hy/checkpoints.zip?dl=0',
+        'id': '1vhShooely96Dj5DQbZiqM6uslS-S-ges',
         'name': 'checkpoints.zip',
-        'uncompressed_dir': ''
+        'uncompressed_dir': '',
+        'root_located': True
     },
     'clip_means': {
         'link': 'https://nxt.2a2i.org/index.php/s/CbxaqSy6C7sFNW2/download/clip_means.zip',

@@ -4,6 +4,8 @@ import typing as tp
 import torch
 import torch.nn.functional as F
 from facial_recognition.model_irse import Backbone
+from gan_models.sg2_model import Discriminator
+from torchvision import transforms
 
 
 def cosine_loss(x, y):
@@ -64,29 +66,75 @@ def direction_loss(
     trg_domain_emb, src_domain_emb = clip_batch['trg_domain_emb'], clip_batch['src_domain_emb']
 
     edit_im_direction = trg_encoded - src_encoded
-    edit_domain_direction = trg_domain_emb - src_domain_emb
+    edit_domain_direction = (trg_domain_emb.unsqueeze(1) - src_domain_emb).mean(dim=1)
 
     if trg_domain_emb.ndim == 3:
         edit_domain_direction = edit_domain_direction.mean(axis=1)
-
     return cosine_loss(edit_im_direction, edit_domain_direction).mean()
 
 
-class DomainDiversity(torch.nn.Module):
+def indomain_angle_loss(clip_batch):
+    trg_encoded, src_encoded = clip_batch['trg_encoded'], clip_batch['src_encoded']
+    return F.l1_loss(trg_encoded @ trg_encoded.T, src_encoded @ src_encoded.T)
+
+
+class FeatureLoss(nn.Module):
+    def __init__(self, feature, device='cuda'):
+        super(FeatureLoss, self).__init__()
+        self.feature = feature
+        if self.feature == 'discr':
+            ckpt_path = 'pretrained/StyleGAN2/stylegan2-ffhq-config-f.pt'
+            self.feature_extractor = Discriminator(1024, 2).eval().to(device)
+            ckpt = torch.load(ckpt_path, map_location=lambda storage, loc: storage)
+            self.feature_extractor.load_state_dict(ckpt["d"], strict=False)
+
+    def forward(self, batch):
+        fake_feat = self.feature_extractor(batch['pixel_data']['src_img'])
+        real_feat = self.feature_extractor(batch['pixel_data']['trg_img'])
+        return sum([F.l1_loss(a, b) for a, b in zip(fake_feat, real_feat)]) / len(fake_feat)
+
+
+class PerceptualLoss(nn.Module):
     def __init__(self):
-        super(DomainDiversity, self).__init__()
-        self.percept = lpips.PerceptualLoss(model="net-lin", net="vgg", use_gpu=True)
-        self.percept.eval()
-        from torchvision import transforms
+        super(PerceptualLoss, self).__init__()
+        self.perc = lpips.PerceptualLoss(model="net-lin", net="vgg", use_gpu=True)
+        self.perc.eval()
         self.t = transforms.Resize(256)
 
     def forward(self, batch):
-        src = self.t(batch['pixel_data']['src_img'])
-        N, C, H, W = src.shape
-        A_mean = self.t(batch['pixel_data']['A_mean']).repeat(N, 1, 1, 1)
-        B_mean = self.t(batch['pixel_data']['B_mean']).repeat(N, 1, 1, 1)
-        trg = self.t(batch['pixel_data']['trg_img'])
-        return F.l1_loss(self.percept(src, A_mean), self.percept(trg, B_mean))
+        fake_feat = self.perc(self.t(batch['pixel_data']['src_img']))
+        real_feat = self.perc(self.t(batch['pixel_data']['trg_img']))
+        return self.percept(fake_feat, real_feat).sum() / len(fake_feat)
+
+
+class FaceDiversityLoss(torch.nn.Module):
+    def __init__(self, model_path):
+        super(FaceDiversityLoss, self).__init__()
+        print('Loading ResNet ArcFace')
+        self.facenet = Backbone(input_size=112, num_layers=50, drop_ratio=0.6, mode='ir_se')
+        self.facenet.load_state_dict(torch.load(model_path))
+        self.pool = torch.nn.AdaptiveAvgPool2d((256, 256))
+        self.face_pool = torch.nn.AdaptiveAvgPool2d((112, 112))
+        self.facenet.eval()
+        self.facenet.cuda()
+        # self.opts = opts
+
+    def extract_feats(self, x):
+        if x.shape[2] != 256:
+            x = self.pool(x)
+        x = x[:, :, 35:223, 32:220]  # Crop interesting region
+        x = self.face_pool(x)
+        x_feats = self.facenet(x)
+        return x_feats
+
+    def forward(self, batch):
+        src_faces = batch['pixel_data']['src_img']
+        trg_faces = batch['pixel_data']['trg_img']
+
+        src_feats = self.extract_feats(src_faces)
+        trg_feats = self.extract_feats(trg_faces)
+
+        return F.l1_loss(src_feats @ src_feats.T, trg_feats @ trg_feats.T)
 
 
 # attentive style-loss
@@ -234,11 +282,8 @@ class IDLoss(nn.Module):
         x_feats = self.facenet(x)
         return x_feats
 
-    def forward(self, batch, src=True):
-        if src:
-            y = batch['pixel_data']['src_img']
-        else:
-            y = batch['pixel_data']['trg_ref']
+    def forward(self, batch, src='src_img'):
+        y = batch['pixel_data'][src]
         y_hat = batch['pixel_data']['trg_img']
 
         n_samples = y.shape[0]
@@ -256,31 +301,52 @@ class IDLoss(nn.Module):
 
 
 class ComposedLoss(nn.Module):
-    def get_loss(self, name):
-        if name == 'direction':
-            return direction_loss, {}
-        elif name == 'difa_local':
-            return clip_difa_local, {}
-        elif name == 'difa_w' or name == 'scc':
-            return self.scc_loss, {}
-        elif name == 'id':
-            return self.id_loss, {'src': True}
-        elif name == 'ref_id':
-            return self.id_loss, {'src': False}
-        elif name == 'dom_div':
-            return self.dom_div, {}
-        else:
-            raise ValueError(name)
+    def setup_loss(self):
+        for name in self.loss_funcs:
+            if name == 'direction':
+                self.loss_dict[name] = direction_loss, {}
+            elif name == 'difa_local':
+                self.loss_dict[name] = clip_difa_local, {}
+            elif name == 'difa_w' or name == 'scc':
+                self.scc_loss = PSPLoss(num_keep_first=self.optimization_setup.num_keep_first)
+                self.loss_dict[name] = self.scc_loss, {}
+            elif name == 'dom_div':
+                self.loss_dict[name] = indomain_angle_loss, {}
+            elif name == 'id':
+                if self.id_loss is None:
+                    self.id_loss = IDLoss(self.optimization_setup.face_rec_path)
+                self.loss_dict[name] = self.id_loss, {'src': 'trg_ref'}
+            elif name == 'ref_id':
+                if self.id_loss is None:
+                    self.loss_dict[name] = self.id_loss, {'src': 'src_img'}
+                self.loss_dict[name] = self.id_loss, {'src': 'trg_ref'}
+            elif name == 'face_div':
+                self.face_div = FaceDiversityLoss(self.optimization_setup.face_rec_path)
+                self.loss_dict[name] = self.face_div, {}
+            elif name == 'discr_feat':
+                self.discr_loss = FeatureLoss(feature='discr')
+                self.loss_dict[name] = self.discr_loss, {}
+            elif name == 'perc':
+                self.perc = PerceptualLoss()
+                self.loss_dict[name] = self.perc, {}
+            else:
+                raise ValueError(name)
 
     def __init__(self, optimization_setup):
         super().__init__()
+        self.loss_dict = {}
+        self.scc_loss = None
+        self.id_loss = None
+        self.face_div = None
+        self.discr_loss = None
+        self.perc = None
+
         self.config = optimization_setup
         self.loss_funcs = optimization_setup.loss_funcs
         self.coefs = optimization_setup.loss_coefs
-        self.scc_loss = PSPLoss(num_keep_first=optimization_setup.num_keep_first)
-        self.id_loss = IDLoss(optimization_setup.face_rec_path)
-        self.dom_div = DomainDiversity()
-        self.clip_losses = ['direction', 'difa_local']
+
+        self.clip_losses = ['direction', 'difa_local', 'dom_div']
+        self.setup_loss()
 
     def forward(self, batch):
         losses = {'final': 0.}
@@ -288,10 +354,10 @@ class ComposedLoss(nn.Module):
             if name in self.clip_losses:
                 for visual_encoder_key, clip_batch in batch['clip_data'].items():
                     log_vienc_key = visual_encoder_key.replace('/', '-')
-                    losses[f'{name}_{log_vienc_key}'] = self.get_loss(name)[0](clip_batch)
+                    losses[f'{name}_{log_vienc_key}'] = self.loss_dict[name][0](clip_batch)
                     losses['final'] += losses[f'{name}_{log_vienc_key}'] * coef
             else:
-                loss_f, kwargs = self.get_loss(name)
+                loss_f, kwargs = self.loss_dict[name]
                 losses[name] = loss_f(batch, **kwargs)
                 losses['final'] += losses[name] * coef
         return losses

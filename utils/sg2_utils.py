@@ -59,7 +59,7 @@ class Inferencer(nn.Module):
         self.config = ckpt['config']
         self.device = device
         self.source_generator = DomainAdaptationGenerator(
-            **self.config.generator_args[self.config.training.generator])
+            **self.config.generator_args[self.config.training.generator], device=device)
         self.source_generator.add_patches()  # TODO add options
         self.source_generator.freeze_layers()
         self.source_generator.to(self.device)

@@ -51,12 +51,13 @@ def main():
     config_path = os.path.join(DEFAULT_CONFIG_DIR, conf_cli.config_name)
     config = OmegaConf.merge(OmegaConf.load(config_path), conf_cli)
     latents = get_latents(config.latents_dir, config.n_examples)
+    device = config.device
 
     styles = []
     src = None
     rows = []
     for ckpt in config.ckpts:
-        net = Inferencer((os.path.join(config.checkpoints_dir, ckpt))).cuda()
+        net = Inferencer((os.path.join(config.checkpoints_dir, ckpt)), device=device)
 
         style_path = net.config.training.target_class
         styles.append(get_image_t(style_path))
