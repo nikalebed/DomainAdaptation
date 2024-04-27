@@ -95,7 +95,8 @@ class DomainAdaptationTrainer:
     def setup_criterion(self):
         # self.has_clip_loss = len(self.loss_function.clip.funcs) > 0
         self.criterion = ComposedLoss(self.config.optimization_setup)
-        self.criterion.scc_loss.iter = self.config.training.iter_num
+        if self.criterion.scc_loss is not None:
+            self.criterion.scc_loss.iter = self.config.training.iter_num
 
     def setup_style_image(self):
         style_image_t = get_image_t(self.config.training.target_class, self.source_generator.generator.size)

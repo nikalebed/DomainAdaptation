@@ -308,20 +308,20 @@ class ComposedLoss(nn.Module):
             elif name == 'difa_local':
                 self.loss_dict[name] = clip_difa_local, {}
             elif name == 'difa_w' or name == 'scc':
-                self.scc_loss = PSPLoss(num_keep_first=self.optimization_setup.num_keep_first)
+                self.scc_loss = PSPLoss(num_keep_first=self.config.num_keep_first)
                 self.loss_dict[name] = self.scc_loss, {}
             elif name == 'dom_div':
                 self.loss_dict[name] = indomain_angle_loss, {}
             elif name == 'id':
                 if self.id_loss is None:
-                    self.id_loss = IDLoss(self.optimization_setup.face_rec_path)
+                    self.id_loss = IDLoss(self.config.face_rec_path)
                 self.loss_dict[name] = self.id_loss, {'src': 'trg_ref'}
             elif name == 'ref_id':
                 if self.id_loss is None:
                     self.loss_dict[name] = self.id_loss, {'src': 'src_img'}
                 self.loss_dict[name] = self.id_loss, {'src': 'trg_ref'}
             elif name == 'face_div':
-                self.face_div = FaceDiversityLoss(self.optimization_setup.face_rec_path)
+                self.face_div = FaceDiversityLoss(self.config.face_rec_path)
                 self.loss_dict[name] = self.face_div, {}
             elif name == 'discr_feat':
                 self.discr_loss = FeatureLoss(feature='discr')
