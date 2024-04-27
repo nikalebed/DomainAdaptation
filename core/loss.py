@@ -162,6 +162,55 @@ def clip_difa_local(
     return overall.max(dim=1)[0].mean()
 
 
+class GradualStyleLoss(torch.nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__(args, kwargs)
+        self.prev = None
+        self.psp_alpha = 0.6
+        self.sliding_window_size = 50
+        self.num_keep_first = 7
+        self.iter = None
+
+    def dynamic_loss(self, target_encodings):
+        # Get the conditional vector to mask special enough channels
+        num_channel = len(self.prev)
+        delta_w = target_encodings - self.prev
+        order = delta_w.abs().argsort()
+        chosen_order = order[:int(self.args.psp_alpha * num_channel)]
+        # chosen_order = order[-int(self.args.psp_alpha * num_channel)::]  # Choose most important channels
+        cond = torch.zeros(num_channel).to(self.device)
+        cond[chosen_order] = 1
+        cond = cond.unsqueeze(0)
+
+        # Get masked encodings
+        target_encodings = cond * target_encodings
+        prev = cond * self.prev
+
+        loss = F.l1_loss(target_encodings, prev)
+        return loss
+
+    def forward(self, batch):
+        batch_size = batch['inv_data']['ref_img'].shape[0]
+        target_encodings = batch['inv_data']['ref_img'].reshape(batch_size, -1)
+
+        iters = batch['inv_data']['iters']
+
+        # Mask w+ codes controlling style and fine details
+        if self.num_keep_first > 0:
+            keep_num = self.num_keep_first * 512
+            target_encodings = target_encodings[:, 0:keep_num]
+        regular_weight = max(0, \
+                             (iters - self.sliding_window_size) / (
+                                     self.iter - self.sliding_window_size))
+        if self.prev is None:
+            self.prev = torch.zeros_like(target_encodings)
+
+        loss = regular_weight * self.dynamic_loss(target_encodings)
+        self.prev = target_encodings.detach().clone()
+
+        return loss
+
+
 # SCC
 class PSPLoss(torch.nn.Module):
     def __init__(self, device='cuda', num_keep_first=7):
@@ -329,12 +378,17 @@ class ComposedLoss(nn.Module):
             elif name == 'perc':
                 self.perc = PerceptualLoss()
                 self.loss_dict[name] = self.perc, {}
+            elif name == 'grad_style':
+                self.grad_style = GradualStyleLoss()
+                self.loss_dict[name] = self.grad_style, {}
             else:
                 raise ValueError(name)
 
     def __init__(self, optimization_setup):
         super().__init__()
         self.loss_dict = {}
+
+        self.grad_style = None
         self.scc_loss = None
         self.id_loss = None
         self.face_div = None

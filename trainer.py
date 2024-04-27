@@ -97,6 +97,9 @@ class DomainAdaptationTrainer:
         self.criterion = ComposedLoss(self.config.optimization_setup)
         if self.criterion.scc_loss is not None:
             self.criterion.scc_loss.iter = self.config.training.iter_num
+        if self.criterion.grad_style is not None:
+            self.criterion.grad_style.iter = self.config.training.iter_num
+
 
     def setup_style_image(self):
         style_image_t = get_image_t(self.config.training.target_class, self.source_generator.generator.size)
@@ -193,9 +196,11 @@ class DomainAdaptationTrainer:
             'A_mean': self.forward_source([self.latent_avg.unsqueeze(0)], input_is_latent=True),
             'B_mean': self.forward_trainable([self.latent_avg.unsqueeze(0)], input_is_latent=True)[0]
         }
+        ref_img, _ = self.forward_source(self.zs_for_logging[:4])
         inv_data = {
             'src_latents': self.image_inverter.get_latents(frozen_img),
             'trg_latents': self.image_inverter.get_latents(trainable_img),
+            'ref_latents': self.image_inverter.get_latents(ref_img),
             'iters': self.current_step
         }
         return {
