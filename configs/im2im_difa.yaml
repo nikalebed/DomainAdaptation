@@ -52,6 +52,7 @@ optimization_setup:
     - 6.0
     - 1.0
   num_keep_first: 7
+  psp_alpha: 0.6
   face_rec_path: pretrained/model_ir_se50.pth
   g_reg_every: 4
   optimizer:

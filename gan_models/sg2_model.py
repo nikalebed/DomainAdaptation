@@ -678,6 +678,8 @@ class Discriminator(nn.Module):
             EqualLinear(channels[4], 1),
         )
 
+        self.layers = (1, 3, 4, 5)
+
     def forward(self, input):
         output = []
         out = input

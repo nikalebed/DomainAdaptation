@@ -81,6 +81,7 @@ def indomain_angle_loss(clip_batch):
 class FeatureLoss(nn.Module):
     def __init__(self, feature, device='cuda'):
         super(FeatureLoss, self).__init__()
+        self.device = device
         self.feature = feature
         if self.feature == 'discr':
             ckpt_path = 'pretrained/stylegan2-ffhq-config-f.pt'
@@ -90,8 +91,10 @@ class FeatureLoss(nn.Module):
 
     def forward(self, batch):
         trg_feat = self.feature_extractor(batch['pixel_data']['ref_rec'])
-        real_feat = self.feature_extractor(batch['pixel_data']['ref_img'])
-        return sum([F.l1_loss(a, real_feat) for a in trg_feat]) / len(trg_feat)
+        with torch.no_grad():
+            real_feat = self.feature_extractor(batch['pixel_data']['ref_img'].cuda())
+        B = trg_feat[0].size(0)
+        return sum([F.l1_loss(a, b.repeat(B, 1, 1, 1)) for a, b in zip(trg_feat, real_feat)]) / len(trg_feat)
 
 
 class PerceptualLoss(nn.Module):
@@ -215,7 +218,7 @@ class GradualStyleLoss(torch.nn.Module):
 
 # SCC
 class PSPLoss(torch.nn.Module):
-    def __init__(self, device='cuda', num_keep_first=7):
+    def __init__(self, device='cuda', num_keep_first=7, psp_alpha=0.6):
         super(PSPLoss, self).__init__()
 
         self.device = device
@@ -224,7 +227,7 @@ class PSPLoss(torch.nn.Module):
         self.delta_w_type = 'mean'
         self.sliding_window_size = 50
         # self.weight = weight
-        self.psp_alpha = 0.6
+        self.psp_alpha = psp_alpha
         self.source_set = []
         self.target_set = []
         self.source_pos = 0
@@ -359,7 +362,7 @@ class ComposedLoss(nn.Module):
             elif name == 'difa_local':
                 self.loss_dict[name] = clip_difa_local, {}
             elif name == 'difa_w' or name == 'scc':
-                self.scc_loss = PSPLoss(num_keep_first=self.config.num_keep_first)
+                self.scc_loss = PSPLoss(num_keep_first=self.config.num_keep_first, psp_alpha=self.config.psp_alpha)
                 self.loss_dict[name] = self.scc_loss, {}
             elif name == 'dom_div':
                 self.loss_dict[name] = indomain_angle_loss, {}
