@@ -100,17 +100,15 @@ class DomainAdaptationTrainer:
         if self.criterion.grad_style is not None:
             self.criterion.grad_style.iter = self.config.training.iter_num
 
-
     def setup_style_image(self):
-        style_image_t = get_image_t(self.config.training.target_class, self.source_generator.generator.size)
+        self.style_image_full_res = get_image_t(self.config.training.target_class, self.source_generator.generator.size)
 
         from utils.common import get_style_latent
         self.style_image_latent = get_style_latent(self.config.inversion.method_for_latent,
-                                                   style_image_t,
+                                                   self.style_image_full_res,
                                                    self.config.training.target_class)
-
         # self.style_image_latent[:, 7:] = self.latent_avg
-        self.style_image_resized = resize_batch(style_image_t, 256)
+        self.style_image_resized = resize_batch(self.style_image_full_res, 256)
         self.style_image_inverted_A = self.forward_source(
             [self.style_image_latent], input_is_latent=True)
 
@@ -182,19 +180,23 @@ class DomainAdaptationTrainer:
                 model,
                 inv_style_batch,
                 preprocess).detach()
+        return sm_latent
 
     def encode_batch(self, sample_z):
         frozen_img = self.forward_source(sample_z)
         trainable_img, params = self.forward_trainable(sample_z)
+        ref_latent = self.style_image_latent
         if self.config.training.stylemix_latent:
-            self.update_src_emb()
+            ref_latent = self.update_src_emb()
         clip_data = self.clip_batch_generator.calc_batch(frozen_img, trainable_img)
         pixel_data = {
             'src_img': frozen_img,
             'trg_img': trainable_img,
-            'trg_ref': self.style_image_inverted_A,
-            'A_mean': self.forward_source([self.latent_avg.unsqueeze(0)], input_is_latent=True),
-            'B_mean': self.forward_trainable([self.latent_avg.unsqueeze(0)], input_is_latent=True)[0]
+            'ref_img': self.style_image_full_res,
+            'ref_rec': self.forward_trainable([ref_latent])[0]
+            # 'trg_ref': self.style_image_inverted_A,
+            # 'A_mean': self.forward_source([self.latent_avg.unsqueeze(0)], input_is_latent=True),
+            # 'B_mean': self.forward_trainable([self.latent_avg.unsqueeze(0)], input_is_latent=True)[0]
         }
         ref_img, _ = self.forward_trainable([self.zs_for_logging[0][0][:2]])
         inv_data = {

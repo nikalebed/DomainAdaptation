@@ -76,10 +76,14 @@ class Setup:
 
 
 SOURCES = {
+    # 'sg2': {
+    #     'link': 'https://nxt.2a2i.org/index.php/s/2K3jbFD3Tg7QmHA/download/StyleGAN2.zip',
+    #     'name': 'StyleGAN2.zip',
+    #     'uncompressed_dir': ''
+    # },
     'sg2': {
-        'link': 'https://nxt.2a2i.org/index.php/s/2K3jbFD3Tg7QmHA/download/StyleGAN2.zip',
-        'name': 'StyleGAN2.zip',
-        'uncompressed_dir': ''
+        'id': '1Yr7KuD959btpmcKGAUsbAk5rPjX2MytK',
+        'name': 'stylegan2-ffhq-config-f.pt'
     },
     'dlib': {
         'link': 'http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2',

@@ -83,15 +83,15 @@ class FeatureLoss(nn.Module):
         super(FeatureLoss, self).__init__()
         self.feature = feature
         if self.feature == 'discr':
-            ckpt_path = 'pretrained/StyleGAN2/stylegan2-ffhq-config-f.pt'
+            ckpt_path = 'pretrained/stylegan2-ffhq-config-f.pt'
             self.feature_extractor = Discriminator(1024, 2).eval().to(device)
             ckpt = torch.load(ckpt_path, map_location=lambda storage, loc: storage)
             self.feature_extractor.load_state_dict(ckpt["d"], strict=False)
 
     def forward(self, batch):
-        fake_feat = self.feature_extractor(batch['pixel_data']['src_img'])
-        real_feat = self.feature_extractor(batch['pixel_data']['trg_img'])
-        return sum([F.l1_loss(a, b) for a, b in zip(fake_feat, real_feat)]) / len(fake_feat)
+        trg_feat = self.feature_extractor(batch['pixel_data']['ref_rec'])
+        real_feat = self.feature_extractor(batch['pixel_data']['ref_img'])
+        return sum([F.l1_loss(a, real_feat) for a in trg_feat]) / len(trg_feat)
 
 
 class PerceptualLoss(nn.Module):
@@ -102,9 +102,10 @@ class PerceptualLoss(nn.Module):
         self.t = transforms.Resize(256)
 
     def forward(self, batch):
-        fake_feat = self.t(batch['pixel_data']['src_img'])
-        real_feat = self.t(batch['pixel_data']['trg_img'])
-        return self.perc(fake_feat, real_feat).sum() / len(fake_feat)
+        trg_feat = self.t(batch['pixel_data']['ref_rec'])
+        B, C, H, W = trg_feat.shape
+        ref_feat = self.t(batch['pixel_data']['ref_img']).repeat(B, 1, 1, 1)
+        return self.perc(trg_feat, ref_feat).sum() / len(trg_feat)
 
 
 class FaceDiversityLoss(torch.nn.Module):
