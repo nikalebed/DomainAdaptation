@@ -104,11 +104,20 @@ class PerceptualLoss(nn.Module):
         self.perc.eval()
         self.t = transforms.Resize(256)
 
-    def forward(self, batch):
-        trg_feat = self.t(batch['pixel_data']['ref_rec'])
-        B, C, H, W = trg_feat.shape
-        ref_feat = self.t(batch['pixel_data']['ref_img']).repeat(B, 1, 1, 1)
-        return self.perc(trg_feat, ref_feat).sum() / len(trg_feat)
+    def forward(self, batch, task='rec'):
+        if task == 'rec':
+            trg_feat = self.t(batch['pixel_data']['ref_rec'])
+            B, C, H, W = trg_feat.shape
+            ref_feat = self.t(batch['pixel_data']['ref_img']).repeat(B, 1, 1, 1)
+            return self.perc(trg_feat, ref_feat).sum() / len(trg_feat)
+        elif task == 'div':
+            trg_img = self.t(batch['pixel_data']['trg_img'])
+            B, C, H, W = trg_img.shape
+            src_img = self.t(batch['pixel_data']['src_img'])
+
+            trg_mean = self.t(batch['pixel_data']['B_mean']).repeat(B, 1, 1, 1)
+            src_mean = self.t(batch['pixel_data']['A_mean']).repeat(B, 1, 1, 1)
+            return F.l1_loss(self.perc(trg_img, trg_mean), self.perc(src_img, src_mean))
 
 
 class FaceDiversityLoss(torch.nn.Module):
@@ -380,9 +389,14 @@ class ComposedLoss(nn.Module):
             elif name == 'discr_feat':
                 self.discr_loss = FeatureLoss(feature='discr')
                 self.loss_dict[name] = self.discr_loss, {}
-            elif name == 'perc':
-                self.perc = PerceptualLoss()
-                self.loss_dict[name] = self.perc, {}
+            elif name == 'rec_perc':
+                if self.perc is None:
+                    self.perc = PerceptualLoss()
+                self.loss_dict[name] = self.perc, {'task': 'rec'}
+            elif name == 'perc_div':
+                if self.perc is None:
+                    self.perc = PerceptualLoss()
+                self.loss_dict[name] = self.perc, {'task': 'div'}
             elif name == 'grad_style':
                 self.grad_style = GradualStyleLoss()
                 self.loss_dict[name] = self.grad_style, {}

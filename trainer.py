@@ -193,10 +193,10 @@ class DomainAdaptationTrainer:
             'src_img': frozen_img,
             'trg_img': trainable_img,
             'ref_img': self.style_image_full_res,
-            'ref_rec': self.forward_trainable([ref_latent])[0]
+            'ref_rec': self.forward_trainable([ref_latent])[0],
             # 'trg_ref': self.style_image_inverted_A,
-            # 'A_mean': self.forward_source([self.latent_avg.unsqueeze(0)], input_is_latent=True),
-            # 'B_mean': self.forward_trainable([self.latent_avg.unsqueeze(0)], input_is_latent=True)[0]
+            'A_mean': self.forward_source([self.latent_avg.unsqueeze(0)], input_is_latent=True),
+            'B_mean': self.forward_trainable([self.latent_avg.unsqueeze(0)], input_is_latent=True)[0]
         }
         ref_img, _ = self.forward_trainable([self.zs_for_logging[0][0][:2]])
         inv_data = {
