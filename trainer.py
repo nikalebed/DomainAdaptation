@@ -33,10 +33,11 @@ class DomainAdaptationTrainer:
 
         self.clip_batch_generator = None
         self.image_inverter = BaseInverter()
+        
+        self.logging = self.config.logging.enabled
 
     def setup(self):
         self.setup_source_generator()
-
         self.initial_logging()
 
         self.setup_trainable()
@@ -45,7 +46,8 @@ class DomainAdaptationTrainer:
         self.setup_image_inverter()
 
         self.setup_style_image()
-        self.log_target_images()
+        if self.logging :
+            self.log_target_images()
 
         self.setup_clip_batch_generator()
 
@@ -126,18 +128,18 @@ class DomainAdaptationTrainer:
             mixing_noise(16, 512, 0, self.config.training.device)
             for _ in range(self.config.logging.num_grid_outputs)
         ]
+        if self.logging:
+            wandb.init(project=self.config.exp.project,
+                    name=self.config.exp.name,
+                    dir=self.config.exp.root,
+                    tags=tuple(self.config.exp.tags) if self.config.exp.tags else None,
+                    notes=self.config.exp.notes,
+                    config=dict(self.config))
 
-        wandb.init(project=self.config.exp.project,
-                   name=self.config.exp.name,
-                   dir=self.config.exp.root,
-                   tags=tuple(self.config.exp.tags) if self.config.exp.tags else None,
-                   notes=self.config.exp.notes,
-                   config=dict(self.config))
-
-        for idx, z in enumerate(self.zs_for_logging):
-            images = self.forward_source(z)
-            wandb.log(
-                {f"src_domain_grids/{idx}": wandb.Image(construct_paper_image_grid(images), caption=f"originals")})
+            for idx, z in enumerate(self.zs_for_logging):
+                images = self.forward_source(z)
+                wandb.log(
+                    {f"src_domain_grids/{idx}": wandb.Image(construct_paper_image_grid(images), caption=f"originals")})
 
     @torch.no_grad()
     def forward_source(self, latents, **kwargs) -> torch.Tensor:
@@ -193,10 +195,10 @@ class DomainAdaptationTrainer:
             'src_img': frozen_img,
             'trg_img': trainable_img,
             'ref_img': self.style_image_full_res,
-            'ref_rec': self.forward_trainable([ref_latent])[0],
+            'ref_rec': self.forward_trainable([ref_latent])[0]
             # 'trg_ref': self.style_image_inverted_A,
-            'A_mean': self.forward_source([self.latent_avg.unsqueeze(0)], input_is_latent=True),
-            'B_mean': self.forward_trainable([self.latent_avg.unsqueeze(0)], input_is_latent=True)[0]
+            # 'A_mean': self.forward_source([self.latent_avg.unsqueeze(0)], input_is_latent=True),
+            # 'B_mean': self.forward_trainable([self.latent_avg.unsqueeze(0)], input_is_latent=True)[0]
         }
         ref_img, _ = self.forward_trainable([self.zs_for_logging[0][0][:2]])
         inv_data = {
@@ -233,11 +235,12 @@ class DomainAdaptationTrainer:
         self.all_to_device(self.device)
         for self.current_step in tqdm(range(1, self.config.training.iter_num + 1)):
             loss = self.train_iter()
-            if self.current_step % self.config.logging.log_images == 0:
+            if self.logging and self.current_step % self.config.logging.log_images == 0:
                 loss.update(self.get_logger_images())
                 wandb.log(loss)
         self.save_checkpoint()
-        wandb.finish()
+        if self.logging:
+            wandb.finish()
 
     def setup_clip_batch_generator(self):
         self.clip_batch_generator = DiFABaseClipBatchGenerator(self.config)
