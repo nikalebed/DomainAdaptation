@@ -94,7 +94,7 @@ SOURCES = {
         'name': 'e4e_ffhq_encode.pt'
     },
     'checkpoints': {
-        'id': '1vhShooely96Dj5DQbZiqM6uslS-S-ges',
+        'id': '1mo92iVILCRElzmJnHi4f-QVW7wdLr5r_',
         'name': 'checkpoints.zip',
         'uncompressed_dir': '',
         'root_located': True
