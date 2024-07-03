@@ -1,4 +1,8 @@
-![params_proje4e_stylemix_sm07_5styles](https://github.com/nikalebed/DomainAdaptation/assets/58134013/88f5aa45-9711-4cb5-96ea-8f556d9d0cf4)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1UloMlI7DFdpKb5h5JfpP4lI6Egxk4F1V?usp=sharing)
 
-Repository contains implementation of domain-adaptation method in the core folder.
-The method is inspired by Difa and HyperDomainNet.
+![image](https://github.com/nikalebed/DomainAdaptation/assets/58134013/8da230f1-004e-4559-9ece-a27c2943f7c0)
+
+
+Repository contains implementation of domain-adaptation method in the core folder. The method is inspired by [Difa](https://github.com/YBYBZhang/DiFa/tree/master) and [HyperDomainNet](https://github.com/MACderRu/HyperDomainNet/tree/main).
+
+You can explore the pipeline in the colab notebook.
