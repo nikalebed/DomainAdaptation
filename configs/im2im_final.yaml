@@ -12,7 +12,7 @@ exp:
   step_save: 25
   trainer: im2im_difa
   checkpoint_dir: checkpoints
-  ckpt_name : None
+  ckpt_name : exp.pt
 training:
   iter_num: 301
   batch_size: 2
